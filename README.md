@@ -90,6 +90,20 @@ use({
 too; the plugin has no build step. For `:help` access,
 run `:helptags ALL` after install.
 
+## Testing
+
+Both halves have unit-test suites. Lint and tests run
+on every push via GitHub Actions.
+
+```sh
+pnpm test:ts    # vitest specs for the pi extension
+pnpm test:lua   # plenary.busted specs for the nvim plugin
+pnpm test       # both, in sequence
+```
+
+See `tests/ts/`, `tests/lua/` and `tests/conformance/`
+for the layout, or `AGENTS.md` for working notes.
+
 ## Structure
 
 ```

@@ -15,8 +15,13 @@
     "./lib": "./lib/index.ts"
   },
   "scripts": {
-    "lint": "biome check extensions/ lib/",
-    "lint:fix": "biome check --write extensions/ lib/"
+    "lint": "biome check extensions/ lib/ tests/ts/",
+    "lint:fix": "biome check --write extensions/ lib/ tests/ts/",
+    "test": "vitest run && ./scripts/lua-test.sh",
+    "test:ts": "vitest run",
+    "test:ts:watch": "vitest",
+    "test:ts:coverage": "vitest run --coverage",
+    "test:lua": "./scripts/lua-test.sh"
   },
   "pi": {
     "extensions": [
@@ -27,6 +32,8 @@
     "neovim": "^5.4.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.6"
+    "@biomejs/biome": "2.4.6",
+    "@vitest/coverage-v8": "^4.1.6",
+    "vitest": "^4.1.6"
   }
 }

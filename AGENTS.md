@@ -99,6 +99,34 @@ side.
 - Lint Lua with `stylua` (not enforced yet — add to
   CI before first tag).
 
+## Testing
+
+Both halves have automated tests. Run them before
+opening a PR or whenever you touch shared protocol
+shapes.
+
+```sh
+pnpm test:ts        # vitest unit tests (TypeScript half)
+pnpm test:lua       # plenary.busted specs (Lua half)
+pnpm test           # both, in sequence
+```
+
+Test layout:
+
+- `tests/ts/*.test.ts` — vitest specs for the pi
+  extension. Use mocks for `NeovimClient` and the pi
+  `ExtensionAPI`; no real socket required.
+- `tests/lua/*_spec.lua` — plenary.busted specs that
+  run under headless nvim via
+  `scripts/lua-test.sh`. Plenary clones to
+  `.deps/plenary.nvim` automatically if it's missing.
+- `tests/conformance/*.json` — shared protocol vectors
+  both implementations must conform to (work in
+  progress; harness pending).
+
+CI runs `lint`, `test:ts` and `test:lua` on every
+push and PR via GitHub Actions.
+
 ## Design principles (recap)
 
 1. Two peers, not client and server.
