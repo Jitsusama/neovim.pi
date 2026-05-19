@@ -23,6 +23,12 @@ export interface SocketCandidate {
 	pid: number | null;
 	/** mtime of the socket file in epoch milliseconds. */
 	mtimeMs: number;
+	/**
+	 * Current working directory of the nvim that owns the
+	 * socket, if the plugin wrote a sidecar file. Pi's
+	 * picker uses this to show project context.
+	 */
+	cwd: string | null;
 }
 
 /** Directory the nvim plugin and pi both look at. */
@@ -64,8 +70,9 @@ export async function listSocketCandidates(): Promise<SocketCandidate[]> {
 
 		const pidMatch = entry.name.match(/^nvim-(\d+)\.sock$/);
 		const pid = pidMatch?.[1] ? Number.parseInt(pidMatch[1], 10) : null;
+		const cwd = await readCwdSidecar(socket);
 
-		candidates.push({ socket, pid, mtimeMs });
+		candidates.push({ socket, pid, mtimeMs, cwd });
 	}
 
 	candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
@@ -79,5 +86,21 @@ export async function socketExists(path: string): Promise<boolean> {
 		return stat.isSocket();
 	} catch {
 		return false;
+	}
+}
+
+/**
+ * Read the cwd the nvim plugin recorded alongside a socket.
+ * Returns null when the sidecar is missing or unreadable;
+ * callers fall back to a less informative label.
+ */
+async function readCwdSidecar(socket: string): Promise<string | null> {
+	const path = socket.replace(/\.sock$/, ".cwd");
+	try {
+		const body = await fs.readFile(path, "utf8");
+		const trimmed = body.trim();
+		return trimmed.length > 0 ? trimmed : null;
+	} catch {
+		return null;
 	}
 }

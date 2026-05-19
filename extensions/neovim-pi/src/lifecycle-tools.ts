@@ -143,9 +143,7 @@ async function chooseSocket(ctx: ExtensionContext, hint?: string): Promise<strin
 		return onlyCandidate.socket;
 	}
 
-	const labels = candidates.map(
-		(c) => `${c.socket}  (pid ${c.pid ?? "?"}, ${formatAge(c.mtimeMs)})`,
-	);
+	const labels = candidates.map((c) => formatCandidate(c));
 	const chosen = await ctx.ui.select("Pair with which nvim?", labels);
 	const index = labels.indexOf(chosen);
 	const candidate = candidates[index];
@@ -153,6 +151,17 @@ async function chooseSocket(ctx: ExtensionContext, hint?: string): Promise<strin
 		throw new Error("no nvim selected");
 	}
 	return candidate.socket;
+}
+
+/**
+ * Picker label: prefer the cwd the nvim plugin recorded
+ * (project context the user actually recognises), and
+ * fall back to the socket path. Pid and age sit in the
+ * sidecar so the user can disambiguate identical cwds.
+ */
+function formatCandidate(c: import("./discovery.js").SocketCandidate): string {
+	const primary = c.cwd ?? c.socket;
+	return `${primary}  (pid ${c.pid ?? "?"}, ${formatAge(c.mtimeMs)})`;
 }
 
 /** Format a socket's age relative to now, for the picker. */

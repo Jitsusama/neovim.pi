@@ -173,6 +173,30 @@ describe("lifecycle tools", () => {
 			expect(result?.details).toMatchObject({ socket: sockB.path });
 		});
 
+		it("shows the cwd sidecar in the picker label so the user can pick by project", async () => {
+			const { pi, tools } = fakePi();
+			registerLifecycleTools(pi);
+			const sockA = await liveSocket(dir, "nvim-101.sock");
+			const sockB = await liveSocket(dir, "nvim-202.sock");
+			cleanups.push(sockA.close, sockB.close);
+			await fs.writeFile(join(dir, "nvim-101.cwd"), "/work/alpha");
+			await fs.writeFile(join(dir, "nvim-202.cwd"), "/work/beta");
+
+			let promptedWith: string[] = [];
+			const { ctx } = fakeCtx({
+				select: async (_prompt, options) => {
+					promptedWith = options;
+					return options.find((o) => o.includes("/work/beta")) ?? options[0]!;
+				},
+			});
+
+			await tools
+				.get("nvim_attach")
+				?.execute("id", {}, new AbortController().signal, () => {}, ctx);
+			expect(promptedWith.some((l) => l.includes("/work/alpha"))).toBe(true);
+			expect(promptedWith.some((l) => l.includes("/work/beta"))).toBe(true);
+		});
+
 		it("rejects when no candidates exist and no hint is provided", async () => {
 			const { pi, tools } = fakePi();
 			registerLifecycleTools(pi);

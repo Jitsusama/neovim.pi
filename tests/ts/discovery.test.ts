@@ -86,6 +86,26 @@ describe("listSocketCandidates", () => {
 		const candidates = await listSocketCandidates();
 		expect(candidates.map((c) => c.socket)).toEqual([newer, older]);
 	});
+
+	it("reads the cwd sidecar when the plugin wrote one", async () => {
+		await liveSocket("nvim-7.sock");
+		await fs.writeFile(join(dir, "nvim-7.cwd"), "/work/project-foo\n");
+		const [candidate] = await listSocketCandidates();
+		expect(candidate?.cwd).toBe("/work/project-foo");
+	});
+
+	it("leaves cwd null when no sidecar is present", async () => {
+		await liveSocket("nvim-8.sock");
+		const [candidate] = await listSocketCandidates();
+		expect(candidate?.cwd).toBeNull();
+	});
+
+	it("treats an empty sidecar as no cwd", async () => {
+		await liveSocket("nvim-9.sock");
+		await fs.writeFile(join(dir, "nvim-9.cwd"), "   \n");
+		const [candidate] = await listSocketCandidates();
+		expect(candidate?.cwd).toBeNull();
+	});
 });
 
 describe("socketExists", () => {

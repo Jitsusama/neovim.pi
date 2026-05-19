@@ -14,6 +14,25 @@ local pi_chan = nil
 ---@type string?
 local listen_path = nil
 
+--- Path to the cwd sidecar file for a given socket. Pi's
+--- discovery reads this so the multi-nvim picker can show
+--- the user which project each nvim is in.
+local function sidecar_path(socket)
+  return (socket:gsub("%.sock$", ".cwd"))
+end
+
+--- Write the current working directory next to the socket
+--- so pi's picker can show project context.
+local function write_sidecar(socket)
+  local path = sidecar_path(socket)
+  local f = io.open(path, "w")
+  if not f then
+    return
+  end
+  f:write(vim.fn.getcwd())
+  f:close()
+end
+
 --- Start listening on a socket. Pi attaches to this path.
 --- Creates the parent directory and removes a stale
 --- socket file if one exists (e.g. from a previous nvim
@@ -40,14 +59,26 @@ function M.listen(path)
   end
 
   vim.fn.serverstart(path)
+  write_sidecar(path)
 
-  -- Remove the socket file when nvim exits so the next pi
-  -- session doesn't see a stale candidate.
+  -- Keep the cwd sidecar in step if the user changes
+  -- directory; pi's picker should reflect the live state.
+  vim.api.nvim_create_autocmd("DirChanged", {
+    pattern = "global",
+    callback = function()
+      write_sidecar(path)
+    end,
+  })
+
+  -- Remove the socket file (and its cwd sidecar) when nvim
+  -- exits so the next pi session doesn't see a stale
+  -- candidate.
   vim.api.nvim_create_autocmd("VimLeavePre", {
     once = true,
     callback = function()
       pcall(vim.fn.serverstop, path)
       pcall(os.remove, path)
+      pcall(os.remove, sidecar_path(path))
     end,
   })
 end

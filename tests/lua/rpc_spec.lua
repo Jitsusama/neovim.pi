@@ -69,15 +69,44 @@ describe("neovim-pi.rpc", function()
     it("removes a stale socket file before starting", function()
       -- Pretend a previous nvim left a file at this path.
       local f = io.open(socket_path, "w")
-      assert.is_not_nil(f)
-      ;(f --[[@as file*]]):write("stale")
-      ;(f --[[@as file*]]):close()
+      assert.is_not_nil(f);
+      (f --[[@as file*]]):write("stale");
+      (f --[[@as file*]]):close()
 
       rpc.listen(socket_path)
       local stat = vim.uv.fs_stat(socket_path)
       assert.is_truthy(stat)
       -- After our listen() the path should be a socket, not a regular file.
       assert.are.equal("socket", stat.type)
+    end)
+
+    it("writes a .cwd sidecar so pi's picker can show project context", function()
+      rpc.listen(socket_path)
+      local sidecar = socket_path:gsub("%.sock$", ".cwd")
+      local f = io.open(sidecar, "r")
+      assert.is_not_nil(f)
+      local body = (f --[[@as file*]]):read("*a");
+      (f --[[@as file*]]):close()
+      assert.are.equal(vim.fn.getcwd(), body)
+      pcall(os.remove, sidecar)
+    end)
+
+    it("refreshes the sidecar when the user changes cwd", function()
+      rpc.listen(socket_path)
+      local sidecar = socket_path:gsub("%.sock$", ".cwd")
+      local elsewhere = vim.fn.tempname()
+      vim.fn.mkdir(elsewhere, "p")
+      local prev = vim.fn.getcwd()
+      vim.cmd("cd " .. elsewhere)
+      -- DirChanged should have fired and rewritten the sidecar.
+      local f = io.open(sidecar, "r")
+      assert.is_not_nil(f)
+      local body = (f --[[@as file*]]):read("*a");
+      (f --[[@as file*]]):close()
+      assert.are.equal(vim.fn.getcwd(), body)
+      vim.cmd("cd " .. prev)
+      pcall(os.remove, sidecar)
+      pcall(vim.fn.delete, elsewhere, "rf")
     end)
   end)
 end)
