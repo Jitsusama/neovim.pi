@@ -25,18 +25,20 @@ local NVIM_CAPABILITIES = {
 local pi_peer = nil
 
 --- Exchange capability info with pi. Called by pi via nvim_exec_lua.
+---
+--- Pi looks up its own channel id with `nvim_get_api_info`
+--- before this call and passes it in explicitly so nvim can
+--- call back into pi via `vim.rpcrequest` / `vim.rpcnotify`.
 ---@param pi_version string
 ---@param pi_caps string[]
+---@param pi_channel integer
 ---@return { version: string, capabilities: string[] }
-function M.exchange(pi_version, pi_caps)
+function M.exchange(pi_version, pi_caps, pi_channel)
   pi_peer = { version = pi_version, capabilities = pi_caps or {} }
 
-  -- The channel id of the caller is the pi process. We can't
-  -- query it inside nvim_exec_lua directly; the dispatcher
-  -- captures it via `vim.rpcrequest` source on the request
-  -- event. For now we record peer info and expect the user's
-  -- bootstrap or pi's first follow-up call to set the channel
-  -- via `neovim-pi.rpc.set_channel`.
+  if pi_channel then
+    require("neovim-pi.rpc").set_channel(pi_channel)
+  end
 
   return {
     version = PROTOCOL_VERSION,

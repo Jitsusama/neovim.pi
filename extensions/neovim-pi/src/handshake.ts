@@ -52,11 +52,20 @@ export function getPeerInfo(): PeerInfo | null {
 	return peer;
 }
 
-/** Send our hello and receive nvim's. Throws on protocol mismatch. */
+/**
+ * Send our hello and receive nvim's. Throws on protocol mismatch.
+ *
+ * `nvim_get_api_info` returns `[channelId, apiMetadata]`. We pass
+ * the channel id into the lua handshake so nvim can call back
+ * into us via `vim.rpcrequest`/`rpcnotify`.
+ */
 export async function performHandshake(client: NeovimClient): Promise<PeerInfo> {
+	const apiInfo = (await client.request("nvim_get_api_info", [])) as [number, unknown];
+	const channelId = apiInfo[0];
+
 	const response = (await client.request("nvim_exec_lua", [
 		`return require("neovim-pi.handshake").exchange(...)`,
-		[PROTOCOL_VERSION, PI_CAPABILITIES],
+		[PROTOCOL_VERSION, PI_CAPABILITIES, channelId],
 	])) as PeerInfo;
 
 	if (!response?.version) {
