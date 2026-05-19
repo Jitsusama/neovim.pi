@@ -31,30 +31,35 @@ export function registerHandlers(client: NeovimClient): void {
 	// on nvim's side using `rpcrequest(channel_id, "pi.dispatch", ...)`.
 	// This keeps the channel registration count to one and lets us
 	// route by method name in JS.
+	// The npm `neovim` package's `resp.send(value, isError?)` API
+	// puts the value first and uses an optional boolean second arg
+	// to flag it as an error. Getting that signature backwards (as
+	// any node msgpack-rpc veteran will) leads to silent null
+	// responses and userdata-typed return values on the nvim side.
 	client.on(
 		"request",
 		async (
 			method: string,
 			args: unknown[],
-			resp: { send: (err: unknown, value?: unknown) => void },
+			resp: { send: (value: unknown, isError?: boolean) => void },
 		) => {
 			if (method !== "pi.dispatch") {
-				resp.send(`unknown method: ${method}`);
+				resp.send(`unknown method: ${method}`, true);
 				return;
 			}
 
 			const [name, ...rest] = args as [string, ...unknown[]];
 			const handler = handlers.get(name);
 			if (!handler) {
-				resp.send(`unknown pi method: ${name}`);
+				resp.send(`unknown pi method: ${name}`, true);
 				return;
 			}
 
 			try {
 				const result = await handler(rest);
-				resp.send(null, result);
+				resp.send(result);
 			} catch (err) {
-				resp.send(err instanceof Error ? err.message : String(err));
+				resp.send(err instanceof Error ? err.message : String(err), true);
 			}
 		},
 	);

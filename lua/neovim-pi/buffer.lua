@@ -133,13 +133,24 @@ function M._read(bufnr, uri)
     end
 
     vim.schedule(function()
-      local lines = (result and result.lines) or {
-        "neovim-pi: no content returned for " .. uri,
-        "",
-        "The pi peer accepted the request but returned no lines. " ..
-          "Some extension owns this URI scheme but didn't fill in content.",
-      }
-      local filetype = (result and result.filetype) or ""
+      local lines, filetype
+      if type(result) == "table" then
+        lines = result.lines or {
+          "neovim-pi: resolver returned no lines for " .. uri,
+        }
+        filetype = result.filetype or ""
+      else
+        -- A userdata here means pi sent back vim.NIL (commonly
+        -- caused by a backwards `resp.send` call). Show it instead
+        -- of crashing the schedule callback.
+        lines = {
+          "neovim-pi: unexpected response shape for " .. uri,
+          "type=" .. type(result),
+          "value=" .. tostring(result),
+        }
+        filetype = ""
+      end
+
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
       if filetype ~= "" then
         vim.bo[bufnr].filetype = filetype
