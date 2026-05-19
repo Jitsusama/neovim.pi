@@ -55,20 +55,6 @@ describe("registerHandlers", () => {
 		removeMethod("custom.boom");
 	});
 
-	it("seeds the built-in `ping` method", async () => {
-		const { emit } = fakeClient();
-		const resp = await emit("pi.dispatch", ["ping"]);
-		expect(resp.value).toBe("pong");
-		expect(resp.isError).toBeFalsy();
-	});
-
-	it("seeds the built-in `hello` method", async () => {
-		const { emit } = fakeClient();
-		const resp = await emit("pi.dispatch", ["hello"]);
-		expect(resp.value).toEqual({ name: "neovim-pi" });
-		expect(resp.isError).toBeFalsy();
-	});
-
 	it("seeds a default `buffer.uri.resolve` handler", async () => {
 		const { emit } = fakeClient();
 		const resp = await emit("pi.dispatch", ["buffer.uri.resolve", "pi://local/x"]);
@@ -109,22 +95,17 @@ describe("registerHandlers", () => {
 		expect(String(resp.value)).toContain("kaboom");
 	});
 
-	it("never sends `null` as a successful value (regression: vim.NIL userdata)", async () => {
-		// The previous bug: resp.send(null, result) treated `result` as
-		// the isError flag, so success responses came back as null and
-		// crashed the nvim side. Belt-and-braces: assert no handler we
-		// own ever sends null with isError falsy.
+	it("returns the handler's value as-is on success (regression: resp.send signature)", async () => {
+		// The previous bug: resp.send(null, result) was treating `result`
+		// as the isError flag, so successful responses sent `null` on the
+		// wire and crashed the nvim side. The wire contract we care about
+		// is: whatever a handler returns is what nvim sees, byte-for-byte
+		// shape. Round-trip a value through and assert structural equality.
 		const { emit } = fakeClient();
-		const responses = await Promise.all([
-			emit("pi.dispatch", ["ping"]),
-			emit("pi.dispatch", ["hello"]),
-			emit("pi.dispatch", ["buffer.uri.resolve", "pi://local/test"]),
-		]);
-		for (const resp of responses) {
-			if (!resp.isError) {
-				expect(resp.value).not.toBeNull();
-				expect(resp.value).not.toBeUndefined();
-			}
-		}
+		const payload = { lines: ["line one", "line two"], filetype: "markdown" };
+		addMethod("custom.echo", () => payload);
+		const resp = await emit("pi.dispatch", ["custom.echo"]);
+		expect(resp.isError).toBeFalsy();
+		expect(resp.value).toEqual(payload);
 	});
 });

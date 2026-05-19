@@ -124,6 +124,30 @@ Test layout:
   both implementations must conform to (work in
   progress; harness pending).
 
+### What to test
+
+Tests assert **functional behaviour through public
+APIs**, never implementation. Concretely:
+
+- **Do** test round-trips: "after I `rememberPairing(X)`,
+  `lastPairing()` returns X."
+- **Do** test wire contracts: "a handler returning
+  `{lines: [...]}` produces that exact shape on the wire."
+- **Do** test observable side effects: "after `listen()`,
+  the socket file exists on disk."
+- **Don't** test internal call shapes: "`appendEntry` was
+  called with type X and data Y." If the storage format
+  changes, the test should not move.
+- **Don't** test absence of internal state: "this function
+  doesn't cache." Caching is an implementation choice, not
+  a contract.
+- **Don't** test seeded helpers that aren't documented
+  public protocol (e.g. internal debug methods).
+
+If a test would still pass after a legitimate refactor
+that preserves the observable behaviour, it's a good
+test. If it would break, it's testing internals.
+
 CI runs `lint`, `test:ts` and `test:lua` on every
 push and PR via GitHub Actions.
 
