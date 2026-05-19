@@ -15,14 +15,31 @@ local pi_chan = nil
 local listen_path = nil
 
 --- Start listening on a socket. Pi attaches to this path.
+--- Creates the parent directory and removes a stale
+--- socket file if one exists (e.g. from a previous nvim
+--- that crashed without cleaning up).
 ---@param path string
 function M.listen(path)
   if listen_path == path then
     return
   end
   listen_path = path
-  pcall(vim.fn.serverstop, listen_path)
-  vim.fn.serverstart(listen_path)
+
+  -- Ensure the parent directory exists.
+  local dir = vim.fs.dirname(path)
+  if dir and dir ~= "" then
+    vim.fn.mkdir(dir, "p")
+  end
+
+  -- If a stale socket file exists, remove it. `serverstart`
+  -- on an existing path silently picks a new one with a
+  -- suffix, which pi would never find.
+  if vim.uv.fs_stat(path) then
+    pcall(vim.fn.serverstop, path)
+    pcall(os.remove, path)
+  end
+
+  vim.fn.serverstart(path)
 end
 
 --- Returns true if a pi peer has completed the handshake.
