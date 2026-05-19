@@ -40,6 +40,16 @@ function M.listen(path)
   end
 
   vim.fn.serverstart(path)
+
+  -- Remove the socket file when nvim exits so the next pi
+  -- session doesn't see a stale candidate.
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    once = true,
+    callback = function()
+      pcall(vim.fn.serverstop, path)
+      pcall(os.remove, path)
+    end,
+  })
 end
 
 --- Returns true if a pi peer has completed the handshake.

@@ -16,6 +16,12 @@
 
 local M = {}
 
+--- Default socket path: per-pid under the pi state dir.
+local function default_socket()
+  local base = vim.env.XDG_RUNTIME_DIR or vim.fn.expand("~/.local/state/pi")
+  return base .. "/nvim-" .. vim.fn.getpid() .. ".sock"
+end
+
 ---@class neovim_pi.Config
 ---@field listen string?         Socket path to listen on (or nil for none).
 ---@field buffers { enable: boolean }?  Register `pi://` BufReadCmd.
@@ -25,9 +31,17 @@ local M = {}
 local config = {}
 
 --- Configure neovim-pi. Idempotent; safe to call multiple times.
+---
+--- The default `listen` path encodes the nvim PID so each
+--- instance gets a unique socket. Pi discovers all live
+--- sockets and pairs with whichever the user picks.
 ---@param opts neovim_pi.Config?
 function M.setup(opts)
   config = vim.tbl_deep_extend("force", config, opts or {})
+
+  if config.listen == nil then
+    config.listen = default_socket()
+  end
 
   if config.listen then
     require("neovim-pi.rpc").listen(config.listen)

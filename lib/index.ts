@@ -27,12 +27,15 @@ export {
 	subscribe as subscribeStatus,
 } from "../extensions/neovim-pi/src/status.js";
 
-import { getClient as _getClient } from "../extensions/neovim-pi/src/attach.js";
+import { getClient as _getClient, getPairedSocket } from "../extensions/neovim-pi/src/attach.js";
 
 /** Returns the live NeovimClient, or null if not attached. */
 export const getClient = _getClient;
 
-/** Returns true when pi is currently attached to nvim. */
+/** Returns true when pi is currently paired with nvim. */
 export function isAttached(): boolean {
 	return _getClient() !== null;
 }
+
+/** Returns the socket path of the current pairing, or null. */
+export { getPairedSocket };

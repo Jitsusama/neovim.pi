@@ -1,60 +1,70 @@
 /**
  * neovim-pi: bidirectional pi ↔ neovim bridge.
  *
- * Discovers a running nvim socket, attaches over
- * msgpack-rpc, exchanges a capability handshake and
- * stands up a method registry. Other pi extensions can
- * reach the live client via the public API exported
- * from `../../lib/`.
+ * Pairing is explicit: the agent calls `nvim_attach`
+ * on the user's behalf. Pi never auto-attaches to a
+ * random nvim that happens to be running.
+ *
+ * A pairing is session-scoped: pi remembers the chosen
+ * socket via `pi.appendEntry`, so a `/reload` restores
+ * the previous pairing automatically if the socket is
+ * still alive. Detaches are remembered too.
  *
  * Lifecycle:
- *   session_start    → attach (idempotent; respects reason)
- *   session_shutdown → close socket, drop client cache
+ *   session_start    → render status, try to silently
+ *                      reattach if session log records
+ *                      a still-live socket
+ *   session_shutdown → close socket; nvim stays running
  *
  * Registration is the only thing this file does. Every
  * substantive concern lives in `src/`.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { attachToNeovim, detachFromNeovim, getClient } from "./src/attach.js";
+import { attachToSocket, detachFromNeovim, getClient } from "./src/attach.js";
+import { socketExists } from "./src/discovery.js";
+import { registerLifecycleTools } from "./src/lifecycle-tools.js";
+import { forgetPairing, lastPairing } from "./src/state.js";
+import { clearStatus, renderStatus } from "./src/status-line.js";
 import { registerNvimTools } from "./src/tools.js";
 
 export default async function (pi: ExtensionAPI) {
-	// -- Lifecycle: attach on session start, detach on shutdown --
+	// -- Lifecycle: restore prior pairing if still alive --
 
 	pi.on("session_start", async (_event, ctx) => {
+		const socket = lastPairing(ctx);
+		if (!socket) {
+			renderStatus(ctx, false);
+			return;
+		}
+
+		if (!(await socketExists(socket))) {
+			// Nvim died or moved on. Forget the stale pairing so we
+			// don't try again next reload.
+			forgetPairing(pi);
+			renderStatus(ctx, false);
+			return;
+		}
+
 		try {
-			await attachToNeovim();
-			ctx.ui.setStatus("nvim", "attached");
-		} catch (err) {
-			// Non-fatal: pi works fine without nvim. We just won't
-			// be able to open `pi://` buffers in nvim until the
-			// user runs :PiAttach or a fresh socket appears.
-			const reason = err instanceof Error ? err.message : String(err);
-			ctx.ui.setStatus("nvim", `not attached (${reason})`);
+			await attachToSocket(socket);
+			renderStatus(ctx, true);
+		} catch {
+			forgetPairing(pi);
+			renderStatus(ctx, false);
 		}
 	});
 
-	pi.on("session_shutdown", async () => {
+	pi.on("session_shutdown", async (_event, ctx) => {
 		await detachFromNeovim();
+		clearStatus(ctx);
 	});
 
-	// -- Tools the agent can call to drive nvim --
+	// -- Tools the agent calls to drive pairing --
+
+	registerLifecycleTools(pi);
+
+	// -- Tools the agent calls to drive an attached nvim --
 
 	registerNvimTools(pi, () => getClient());
-
-	// -- /nvim-status command: quick health check --
-
-	pi.registerCommand("nvim-status", {
-		description: "Show the current pi ↔ nvim connection status.",
-		handler: async (_args, ctx) => {
-			const client = getClient();
-			if (!client) {
-				ctx.ui.notify("nvim: not attached", "info");
-				return;
-			}
-			const channelId = await client.channelId;
-			ctx.ui.notify(`nvim: attached (channel ${channelId})`, "success");
-		},
-	});
 }

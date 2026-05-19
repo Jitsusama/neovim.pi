@@ -108,7 +108,7 @@ export function registerNvimTools(pi: ExtensionAPI, getClient: ClientResolver): 
 function requireClient(get: ClientResolver): NeovimClient {
 	const client = get();
 	if (!client) {
-		throw new Error("nvim is not attached; run :PiAttach in neovim, then retry.");
+		throw new Error("no nvim paired with this pi session; call `nvim_attach` to pair, then retry.");
 	}
 	return client;
 }
