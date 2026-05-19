@@ -23,12 +23,24 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { attachToSocket, detachFromNeovim, getClient } from "./src/attach.js";
 import { socketExists } from "./src/discovery.js";
+import { registerEventBridge } from "./src/event-bridge.js";
 import { registerLifecycleTools } from "./src/lifecycle-tools.js";
 import { forgetPairing, lastPairing } from "./src/state.js";
 import { clearStatus, renderStatus } from "./src/status-line.js";
 import { registerNvimTools } from "./src/tools.js";
 
 export default async function (pi: ExtensionAPI) {
+	// -- Cross-extension registration bridge --
+	//
+	// Subscribe to `neovim-pi:register-handler` and
+	// `neovim-pi:remove-handler` events so other pi extensions
+	// can install `pi.*` method handlers without importing
+	// from neovim-pi directly (which they can't, because pi
+	// loads packages with isolated module roots). Emits
+	// `neovim-pi:ready` once subscribed so emitters that
+	// loaded earlier can retry their registration.
+	registerEventBridge(pi.events);
+
 	// -- Lifecycle: restore prior pairing if still alive --
 
 	pi.on("session_start", async (_event, ctx) => {
