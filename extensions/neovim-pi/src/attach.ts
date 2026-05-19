@@ -49,15 +49,30 @@ export async function attachToNeovim(): Promise<NeovimClient> {
 	return client;
 }
 
-/** Detach and release the connection. Safe to call multiple times. */
+/**
+ * Detach and release the connection. Safe to call multiple times.
+ *
+ * The npm `neovim` package exposes `client.quit()`, but that
+ * sends `:qa!` to nvim and kills the user's editor. We never
+ * want that. Close our side of the socket directly so nvim
+ * sees an EOF on its channel and detaches the peer without
+ * exiting.
+ */
 export async function detachFromNeovim(): Promise<void> {
 	if (!client) return;
 	const c = client;
 	client = null;
 	try {
-		c.quit();
+		// The neovim client wraps a node `net.Socket` (or stdio) on
+		// `transport._stream`. End it ourselves; if the internal shape
+		// changes upstream, the catch below keeps us safe.
+		const stream = (c as unknown as { transport?: { _stream?: { end?: () => void } } }).transport
+			?._stream;
+		stream?.end?.();
 	} catch {
-		// `quit()` closes the channel; if it's already gone, that's fine.
+		// Best-effort: dropping our reference lets GC reclaim the
+		// socket eventually. Nvim will see an idle channel until then,
+		// which is harmless (no commands flow through it).
 	}
 }
 
