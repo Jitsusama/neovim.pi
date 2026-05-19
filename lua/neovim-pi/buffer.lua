@@ -135,9 +135,10 @@ function M._read(bufnr, uri)
     vim.schedule(function()
       local lines, filetype
       if type(result) == "table" then
-        lines = result.lines or {
-          "neovim-pi: resolver returned no lines for " .. uri,
-        }
+        lines = result.lines
+          or {
+            "neovim-pi: resolver returned no lines for " .. uri,
+          }
         filetype = result.filetype or ""
       else
         -- A userdata here means pi sent back vim.NIL (commonly

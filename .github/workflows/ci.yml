@@ -6,29 +6,52 @@ on:
   pull_request:
 
 jobs:
-  lint:
-    name: Lint (biome)
+  lint-ts:
+    name: Lint TS (biome)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  lint-lua:
+    name: Lint Lua (luacheck + stylua)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.1"
+      - uses: leafo/gh-actions-luarocks@v4
+      - run: luarocks install luacheck
+      - run: luacheck lua tests/lua plugin
+      - uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check lua tests/lua plugin
 
   test-ts:
-    name: TypeScript tests (vitest)
+    name: TS tests (vitest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-      - run: npm ci
-      - run: npm run test:ts
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:ts
 
   test-lua:
     name: Lua tests (plenary.busted)
@@ -44,3 +67,20 @@ jobs:
           mkdir -p .deps
           git clone --depth 1 https://github.com/nvim-lua/plenary.nvim .deps/plenary.nvim
       - run: ./scripts/lua-test.sh
+
+  helptags:
+    name: Generate :help tags
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: Run :helptags doc/
+        run: |
+          nvim --headless --noplugin -u NONE \
+            -c "helptags doc" -c "qa!"
+      - name: Verify tags file is non-empty
+        run: |
+          test -s doc/tags || (echo "doc/tags is empty or missing" && exit 1)

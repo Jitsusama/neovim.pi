@@ -15,9 +15,14 @@
     "./lib": "./lib/index.ts"
   },
   "scripts": {
-    "lint": "biome check extensions/ lib/ tests/ts/",
-    "lint:fix": "biome check --write extensions/ lib/ tests/ts/",
-    "test": "vitest run && ./scripts/lua-test.sh",
+    "lint": "pnpm lint:ts && pnpm lint:lua",
+    "lint:fix": "pnpm lint:ts:fix && pnpm lint:lua:fix",
+    "lint:ts": "biome check extensions/ lib/ tests/ts/",
+    "lint:ts:fix": "biome check --write extensions/ lib/ tests/ts/",
+    "lint:lua": "luacheck lua tests/lua plugin && stylua --check lua tests/lua plugin",
+    "lint:lua:fix": "stylua lua tests/lua plugin",
+    "helptags": "nvim --headless --noplugin -u NONE -c 'helptags doc' -c 'qa!'",
+    "test": "pnpm test:ts && pnpm test:lua",
     "test:ts": "vitest run",
     "test:ts:watch": "vitest",
     "test:ts:coverage": "vitest run --coverage",

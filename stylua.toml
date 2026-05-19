@@ -1,0 +1,11 @@
+# Stylua: lua formatter config matching the existing
+# in-tree style. Two-space indent, LF endings, no
+# trailing whitespace, mostly default everything else.
+
+column_width = 100
+line_endings = "Unix"
+indent_type = "Spaces"
+indent_width = 2
+quote_style = "AutoPreferDouble"
+call_parentheses = "Always"
+collapse_simple_statement = "Never"

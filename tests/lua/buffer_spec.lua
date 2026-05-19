@@ -36,7 +36,8 @@ describe("neovim-pi.buffer", function()
   describe("enable() / disable()", function()
     it("registers a BufReadCmd autocmd for the pi:// scheme", function()
       buffer.enable()
-      local autocmds = vim.api.nvim_get_autocmds({ group = "neovim-pi-buffer", event = "BufReadCmd" })
+      local autocmds =
+        vim.api.nvim_get_autocmds({ group = "neovim-pi-buffer", event = "BufReadCmd" })
       assert.is_true(#autocmds > 0)
     end)
 
