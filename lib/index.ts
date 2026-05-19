@@ -10,6 +10,19 @@
  * Import as:
  *
  *   import { addMethod, isAttached, getClient } from "neovim.pi/lib";
+ *
+ * **Cross-package callers** can't import this lib because
+ * pi loads packages with isolated module roots. They use
+ * the `pi.events` bridge instead:
+ *
+ *   pi.events.emit("neovim-pi:register-handler", {
+ *     method: "buffer.uri.resolve",
+ *     handler: async (args) => ({ lines: ["hello"] }),
+ *   });
+ *
+ * Re-emit on receipt of `neovim-pi:ready` to handle the
+ * case where neovim-pi loads after your extension.
+ * See `doc/protocol.md` for the full contract.
  */
 
 export {

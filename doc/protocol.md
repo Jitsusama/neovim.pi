@@ -115,6 +115,43 @@ just defines the resolver contract:
 pi.buffer.uri.resolve(uri) → { lines: string[], filetype?: string, cursor?: [line, col] }
 ```
 
+## Cross-package handler registration
+
+The pi-side method registry lives in the neovim-pi
+extension. Other pi extensions can't import it because
+pi loads packages with isolated module roots. They use
+the `pi.events` bus instead.
+
+Three events form the contract:
+
+```
+neovim-pi:register-handler { method: string, handler: Handler }
+neovim-pi:remove-handler   { method: string }
+neovim-pi:ready            (no payload)
+```
+
+Where `Handler = (args: unknown[]) => unknown | Promise<unknown>`.
+
+Neovim-pi subscribes to register and remove events at
+extension load. It emits `ready` once subscriptions are
+wired. The convention for callers is:
+
+1. Emit `register-handler` once at your own extension
+   init. This covers the case where neovim-pi loaded
+   first.
+2. Also subscribe to `ready` and re-emit on receipt.
+   This covers the case where neovim-pi loads after
+   you did.
+
+Malformed payloads are dropped silently. Last
+registration wins, mirroring `addMethod`'s semantics.
+Removal is symmetric.
+
+This bridge is the only sanctioned way for a separate
+pi package to extend the registry. Bundled extensions
+inside the neovim-pi package itself may call `addMethod`
+directly from `lib/index.ts`.
+
 ## Buffer lifecycle
 
 1. pi calls `nvim.buffer.open(uri, focus)`.
