@@ -1,18 +1,6 @@
--- commands.lua has a module-local `registered` flag and no
--- public disable hook. Reload the module per test so we can
--- exercise enable() from a clean state.
-local commands, rpc, handshake
-
-local function fresh_modules()
-  for name in pairs(package.loaded) do
-    if name:match("^neovim%-pi") then
-      package.loaded[name] = nil
-    end
-  end
-  commands = require("neovim-pi.commands")
-  rpc = require("neovim-pi.rpc")
-  handshake = require("neovim-pi.handshake")
-end
+local commands = require("neovim-pi.commands")
+local rpc = require("neovim-pi.rpc")
+local handshake = require("neovim-pi.handshake")
 
 --- Capture vim.notify output for the duration of `block`.
 local function with_captured_notify(block)
@@ -31,10 +19,12 @@ end
 
 describe("neovim-pi.commands", function()
   before_each(function()
-    pcall(vim.api.nvim_del_user_command, "PiStatus")
-    pcall(vim.api.nvim_del_user_command, "PiDetach")
-    fresh_modules()
+    commands.disable()
     rpc.clear_channel()
+  end)
+
+  after_each(function()
+    commands.disable()
   end)
 
   describe("enable()", function()
@@ -50,6 +40,29 @@ describe("neovim-pi.commands", function()
       assert.has_no.errors(function()
         commands.enable()
       end)
+    end)
+  end)
+
+  describe("disable()", function()
+    it("unregisters both commands", function()
+      commands.enable()
+      commands.disable()
+      local cmds = vim.api.nvim_get_commands({})
+      assert.is_nil(cmds.PiStatus)
+      assert.is_nil(cmds.PiDetach)
+    end)
+
+    it("is safe to call when not enabled", function()
+      assert.has_no.errors(function()
+        commands.disable()
+      end)
+    end)
+
+    it("re-enable after disable registers fresh commands", function()
+      commands.enable()
+      commands.disable()
+      commands.enable()
+      assert.is_table(vim.api.nvim_get_commands({}).PiStatus)
     end)
   end)
 

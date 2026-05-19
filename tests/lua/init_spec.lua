@@ -1,20 +1,11 @@
--- `setup()` deep-merges its config across calls (documented
--- behaviour: an opt that was once turned on stays on). For
--- testing we need a fresh module per test so we can observe
--- behaviour from a clean default.
-local neovim_pi
+-- `setup()` resets to documented defaults each call, so a
+-- simple state reset is enough between tests.
+local neovim_pi = require("neovim-pi")
 
 local function reset()
   require("neovim-pi.buffer").disable()
+  require("neovim-pi.commands").disable()
   require("neovim-pi.rpc").clear_channel()
-  pcall(vim.api.nvim_del_user_command, "PiStatus")
-  pcall(vim.api.nvim_del_user_command, "PiDetach")
-  for name in pairs(package.loaded) do
-    if name:match("^neovim%-pi") then
-      package.loaded[name] = nil
-    end
-  end
-  neovim_pi = require("neovim-pi")
 end
 
 describe("neovim-pi (top level)", function()
@@ -95,6 +86,29 @@ describe("neovim-pi (top level)", function()
       local cmds = vim.api.nvim_get_commands({})
       assert.is_nil(cmds.PiStatus)
       assert.is_nil(cmds.PiDetach)
+      pcall(vim.fn.serverstop, tmp)
+      pcall(os.remove, tmp)
+    end)
+
+    it("each call resets options to defaults", function()
+      -- Documents the contract that `setup()` is not a deep
+      -- merge across calls: turning something on then calling
+      -- setup() again without it turns it back off.
+      local tmp = vim.fn.tempname() .. ".sock"
+      neovim_pi.setup({
+        listen = tmp,
+        buffers = { enable = true },
+        commands = { enable = true },
+      })
+      assert.is_table(vim.api.nvim_get_commands({}).PiStatus)
+
+      neovim_pi.setup({ listen = tmp })
+      local cmds = vim.api.nvim_get_commands({})
+      assert.is_nil(cmds.PiStatus)
+      local for_pi = vim.tbl_filter(function(ac)
+        return ac.pattern == "pi://*" and ac.group_name == "neovim-pi-buffer"
+      end, vim.api.nvim_get_autocmds({ event = "BufReadCmd" }))
+      assert.are.equal(0, #for_pi)
       pcall(vim.fn.serverstop, tmp)
       pcall(os.remove, tmp)
     end)

@@ -28,6 +28,7 @@ end
 
 local registered = false
 
+--- Register `:PiStatus` and `:PiDetach`. Idempotent.
 function M.enable()
   if registered then
     return
@@ -36,6 +37,16 @@ function M.enable()
 
   vim.api.nvim_create_user_command("PiStatus", status, { desc = "Show pi connection status." })
   vim.api.nvim_create_user_command("PiDetach", detach, { desc = "Drop the pi peer channel." })
+end
+
+--- Unregister both commands. Idempotent.
+function M.disable()
+  if not registered then
+    return
+  end
+  registered = false
+  pcall(vim.api.nvim_del_user_command, "PiStatus")
+  pcall(vim.api.nvim_del_user_command, "PiDetach")
 end
 
 return M

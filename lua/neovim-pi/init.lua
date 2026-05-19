@@ -27,17 +27,30 @@ end
 ---@field buffers { enable: boolean }?  Register `pi://` BufReadCmd.
 ---@field commands { enable: boolean }? Register `:PiAttach`, `:PiStatus`, etc.
 
+--- Default config. Every `setup()` call starts from this
+--- and applies the user's opts on top, so omitting an
+--- option always reverts it to the documented default.
+local DEFAULTS = {
+  listen = nil,
+  buffers = { enable = false },
+  commands = { enable = false },
+}
+
 ---@type neovim_pi.Config
-local config = {}
+local config = vim.deepcopy(DEFAULTS)
 
 --- Configure neovim-pi. Idempotent; safe to call multiple times.
 ---
 --- The default `listen` path encodes the nvim PID so each
 --- instance gets a unique socket. Pi discovers all live
 --- sockets and pairs with whichever the user picks.
+---
+--- Each call replaces the previous configuration. Pass
+--- everything you want enabled; anything you omit reverts
+--- to its default.
 ---@param opts neovim_pi.Config?
 function M.setup(opts)
-  config = vim.tbl_deep_extend("force", config, opts or {})
+  config = vim.tbl_deep_extend("force", DEFAULTS, opts or {})
 
   if config.listen == nil then
     config.listen = default_socket()
@@ -47,12 +60,16 @@ function M.setup(opts)
     require("neovim-pi.rpc").listen(config.listen)
   end
 
-  if config.buffers and config.buffers.enable then
+  if config.buffers.enable then
     require("neovim-pi.buffer").enable()
+  else
+    require("neovim-pi.buffer").disable()
   end
 
-  if config.commands and config.commands.enable then
+  if config.commands.enable then
     require("neovim-pi.commands").enable()
+  else
+    require("neovim-pi.commands").disable()
   end
 end
 
