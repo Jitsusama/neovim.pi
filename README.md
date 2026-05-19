@@ -13,7 +13,7 @@ harness) that speaks the same wire.
 
 ## What it does
 
-When attached, pi can:
+When pi pairs with nvim, **pi can**:
 
 - Open `pi://` URIs as nvim buffers (read-only by default).
 - Show the user's code in their own editor instead of an
@@ -23,7 +23,7 @@ When attached, pi can:
 - Stream cursor and buffer state so the agent knows what
   the user is looking at.
 
-When attached, nvim can:
+And **nvim can**:
 
 - Query pi for session state, tool calls, conversation
   history.
@@ -40,8 +40,8 @@ other pi extensions) compose the integration they want.
 
 ### pi side
 
-`neovim-pi` ships inside this repo as a pi
-extension. Install via `pi install`:
+`neovim-pi` ships inside this repo as a pi extension.
+Install via `pi install`:
 
 ```bash
 pi install git:github.com/Jitsusama/neovim.pi
@@ -64,8 +64,11 @@ Or vendor the path into your `~/.pi/settings.json`:
   "Jitsusama/neovim.pi",
   config = function()
     require("neovim-pi").setup({
-      -- Listen on the XDG socket pi looks for by default.
-      listen = vim.env.XDG_RUNTIME_DIR .. "/neovim-pi.sock",
+      -- Pi discovers nvim via per-pid sockets under the
+      -- pi state dir; the default below matches what pi
+      -- looks for.
+      listen = (vim.env.XDG_RUNTIME_DIR or vim.fn.expand("~/.local/state/pi"))
+        .. "/nvim-" .. vim.fn.getpid() .. ".sock",
       -- Opt-in: register the `pi://` BufReadCmd.
       buffers = { enable = true },
       -- Opt-in: register `:PiStatus` / `:PiDetach`.
@@ -81,7 +84,10 @@ Or vendor the path into your `~/.pi/settings.json`:
 use({
   "Jitsusama/neovim.pi",
   config = function()
-    require("neovim-pi").setup({ listen = "/run/user/1000/neovim-pi.sock" })
+    require("neovim-pi").setup({
+      buffers = { enable = true },
+      commands = { enable = true },
+    })
   end,
 })
 ```
@@ -90,19 +96,46 @@ use({
 too; the plugin has no build step. For `:help` access,
 run `:helptags ALL` after install.
 
+`setup()` defaults to a per-pid socket under
+`$XDG_RUNTIME_DIR` (or `~/.local/state/pi` on macOS), so
+each nvim instance gets a unique listener and pi can
+disambiguate them in the picker. Pass an explicit
+`listen` only if you want to override.
+
+## Pairing
+
+Pi never auto-attaches. The agent calls
+`nvim_attach` on your behalf, which:
+
+1. **Lists candidate nvims** by scanning the pi state
+   dir for `nvim-*.sock` files. Each candidate is
+   labelled with its working directory (read from the
+   `.cwd` sidecar the plugin writes) plus pid and age.
+2. **Auto-picks** when only one candidate is running.
+3. **Prompts you** when multiple nvims are running. You
+   pick the one you want by project.
+4. **Remembers the pairing** for the session. A
+   `/reload` restores the same nvim if it's still
+   alive; if it died, pi forgets and starts fresh.
+
+The status line shows a single nerd-font vi glyph:
+green when paired, muted when not.
+
 ## Testing
 
-Both halves have unit-test suites. Lint and tests run
-on every push via GitHub Actions.
+Both halves have test suites. Lint and tests run on
+every push via GitHub Actions.
 
 ```sh
-pnpm test:ts    # vitest specs for the pi extension
-pnpm test:lua   # plenary.busted specs for the nvim plugin
-pnpm test       # both, in sequence
+pnpm test           # both halves
+pnpm test:ts        # vitest specs for the pi extension
+pnpm test:lua       # plenary.busted specs for the nvim plugin
+pnpm lint           # biome (TS) + luacheck + stylua (Lua)
+pnpm helptags       # regenerate doc/tags
 ```
 
-See `tests/ts/`, `tests/lua/` and `tests/conformance/`
-for the layout, or `AGENTS.md` for working notes.
+See [`AGENTS.md`](AGENTS.md) for development notes,
+code style, lint and test requirements.
 
 ## Structure
 
@@ -116,17 +149,17 @@ neovim.pi/
 ├── plugin/                    # auto-sourced by nvim (load guard only)
 │   └── neovim-pi.lua
 ├── lua/neovim-pi/             # `require("neovim-pi")` entry points
-│   ├── init.lua
-│   ├── rpc.lua
-│   ├── handshake.lua
-│   ├── buffer.lua
-│   └── commands.lua
-├── extensions/                # pi extensions
-│   └── neovim-pi/
-├── lib/                       # shared TS API for other pi packages
-│   └── index.ts
+│   ├── init.lua               # setup() and public API
+│   ├── rpc.lua                # socket listener + RPC client
+│   ├── handshake.lua          # capability exchange
+│   ├── buffer.lua             # `pi://` BufReadCmd adapter
+│   └── commands.lua           # `:PiStatus` / `:PiDetach`
+├── extensions/neovim-pi/      # pi extension (TS)
+├── lib/                       # public TS API for other pi packages
 └── tests/
-    └── conformance/           # test vectors both sides run
+    ├── ts/                    # vitest
+    ├── lua/                   # plenary.busted
+    └── conformance/           # wire vectors both sides run
 ```
 
 Nvim's `:helptags doc/` only scans `*.txt` for help
@@ -152,13 +185,12 @@ The layout follows both ecosystems' conventions:
    it can do at handshake. Missing capabilities degrade
    gracefully.
 3. **Domain language.** Pi methods speak in pi terms
-   (`pi.session.get`, `pi.tool.invoke`). Nvim methods are
-   nvim's existing API (`nvim_buf_open`,
-   `nvim_buf_set_extmark`) plus a thin plugin facade
-   (`pi.buffer.diff`).
+   (`pi.session.get`, `pi.tool.invoke`). Nvim methods
+   are nvim's existing API (`nvim_buf_open`,
+   `nvim_buf_set_extmark`) plus a thin plugin facade.
 4. **Pi can usurp; nvim is sovereign.** Pi can open a
-   buffer in front of the user; the user can immediately
-   move, close, undo, ignore.
+   buffer in front of the user; the user can
+   immediately move, close, undo, ignore.
 5. **No defaults.** No autocmds. No keymaps. No
    subscriptions. Users opt in.
 
