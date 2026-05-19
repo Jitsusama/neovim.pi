@@ -62,4 +62,28 @@ export function registerHandlers(client: NeovimClient): void {
 	// Seed with the always-on built-ins. Other extensions add more.
 	addMethod("ping", () => "pong");
 	addMethod("hello", () => ({ name: "neovim-pi" }));
+	addMethod("buffer.uri.resolve", (args) => resolveUri(args));
+}
+
+/**
+ * Default URI resolver for `pi://` buffers.
+ *
+ * Each owning extension registers its own scheme via
+ * `addMethod("buffer.uri.resolve", ...)` (last write wins).
+ * When no extension has claimed a scheme, this default
+ * returns a self-documenting message so the user can see
+ * what happened instead of staring at an empty buffer.
+ */
+function resolveUri(args: unknown[]): { lines: string[]; filetype?: string } {
+	const uri = String(args[0] ?? "");
+	return {
+		lines: [
+			`neovim-pi: no scheme handler registered for ${uri}`,
+			"",
+			"This is the default `buffer.uri.resolve` response. An",
+			"extension that owns the URI scheme should override it via",
+			'  `addMethod("buffer.uri.resolve", yourHandler)`',
+			"from the public lib. See `doc/protocol.md` for the contract.",
+		],
+	};
 }

@@ -133,7 +133,12 @@ function M._read(bufnr, uri)
     end
 
     vim.schedule(function()
-      local lines = (result and result.lines) or {}
+      local lines = (result and result.lines) or {
+        "neovim-pi: no content returned for " .. uri,
+        "",
+        "The pi peer accepted the request but returned no lines. " ..
+          "Some extension owns this URI scheme but didn't fill in content.",
+      }
       local filetype = (result and result.filetype) or ""
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
       if filetype ~= "" then
