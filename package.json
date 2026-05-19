@@ -1,0 +1,32 @@
+{
+  "name": "neovim.pi",
+  "version": "0.1.0",
+  "description": "pi ↔ neovim companion: a public bidirectional protocol with reference pi extension and nvim plugin.",
+  "keywords": [
+    "pi-package",
+    "neovim"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jitsusama/neovim.pi"
+  },
+  "exports": {
+    "./lib": "./lib/index.ts"
+  },
+  "scripts": {
+    "lint": "biome check extensions/ lib/",
+    "lint:fix": "biome check --write extensions/ lib/"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/neovim-pi"
+    ]
+  },
+  "dependencies": {
+    "neovim": "^5.4.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.6"
+  }
+}

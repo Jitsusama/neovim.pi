@@ -1,0 +1,96 @@
+*neovim-pi.txt*    pi <-> neovim companion protocol           *neovim-pi*
+
+==============================================================================
+CONTENTS                                              *neovim-pi-contents*
+
+  1. Introduction ........................... |neovim-pi-introduction|
+  2. Setup .................................. |neovim-pi-setup|
+  3. API .................................... |neovim-pi-api|
+  4. Buffers (pi://) ........................ |neovim-pi-buffers|
+  5. Composing your own keymaps ............. |neovim-pi-keymaps|
+  6. License ................................ |neovim-pi-license|
+
+==============================================================================
+1. INTRODUCTION                                    *neovim-pi-introduction*
+
+`neovim-pi` is the neovim half of a bidirectional msgpack-rpc protocol
+that pairs a |pi| session with a neovim session. The plugin ships zero
+default keymaps, zero autocmds and zero subscriptions. Users compose
+the integration they want via |neovim-pi-setup|.
+
+For the protocol specification, see the project README
+and `doc/protocol.md` in the source repository.
+(Markdown spec files live alongside this help file.)
+
+==============================================================================
+2. SETUP                                                  *neovim-pi-setup*
+
+                                                       *neovim-pi.setup()*
+Configure the plugin. Idempotent; safe to call multiple times.
+>
+    require("neovim-pi").setup({
+      listen = vim.env.XDG_RUNTIME_DIR .. "/neovim-pi.sock",
+      buffers = { enable = true },
+      commands = { enable = true },
+    })
+<
+
+Options:                                              *neovim-pi-options*
+
+  `listen`              (string?)    Socket path to listen on. Default: nil.
+  `buffers.enable`      (boolean?)   Register `pi://` BufReadCmd. Default: false.
+  `commands.enable`     (boolean?)   Register `:PiStatus`/`:PiDetach`. Default: false.
+
+==============================================================================
+3. API                                                      *neovim-pi-api*
+
+                                                  *neovim-pi.is_attached()*
+Return `true` if a pi peer is currently attached.
+
+                                                  *neovim-pi.call()*
+Call a pi method by name. Async.
+>
+    require("neovim-pi").call("session.get", {}, function(err, result)
+      if not err then vim.print(result) end
+    end)
+<
+
+==============================================================================
+4. BUFFERS (pi://)                                      *neovim-pi-buffers*
+
+When `setup({ buffers = { enable = true } })` is called, the plugin
+registers a `BufReadCmd` for `pi://*` URIs. Pi resolves the URI to
+buffer content and the plugin sets the buffer read-only.
+
+A `User NeovimPiBufferLoaded` autocmd fires after each load:
+>
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "NeovimPiBufferLoaded",
+      callback = function(args)
+        -- args.data.uri, args.data.bufnr
+      end,
+    })
+<
+
+==============================================================================
+5. COMPOSING YOUR OWN KEYMAPS                           *neovim-pi-keymaps*
+
+The plugin ships no default keymaps. Add your own, scoped to buffers
+the plugin owns, via the `NeovimPiBufferLoaded` autocmd:
+>
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "NeovimPiBufferLoaded",
+      callback = function(args)
+        vim.keymap.set("n", "<leader>e", function()
+          require("neovim-pi").call("findings.act", { "endorse" })
+        end, { buffer = args.data.bufnr })
+      end,
+    })
+<
+
+==============================================================================
+6. LICENSE                                                *neovim-pi-license*
+
+MIT. Copyright (c) 2026 Joel Gerber.
+
+vim:tw=78:ts=8:ft=help:norl:

@@ -1,0 +1,29 @@
+{
+  "name": "handshake/v0.1.0",
+  "description": "Pi attaches and exchanges capabilities. Both peers report v0.1.0 with the documented capability lists.",
+  "steps": [
+    {
+      "from": "pi",
+      "to": "nvim",
+      "call": {
+        "method": "nvim_exec_lua",
+        "args": [
+          "return require('neovim-pi.handshake').exchange(...)",
+          ["0.1.0", ["pi.session.get", "pi.buffer.uri.resolve"]]
+        ]
+      },
+      "expect": {
+        "version": "0.1.0",
+        "capabilities": {
+          "contains": [
+            "nvim.buffer.open",
+            "nvim.buffer.close",
+            "nvim.buffer.markStale",
+            "nvim.buffer.isModified",
+            "nvim.buffer.reload"
+          ]
+        }
+      }
+    }
+  ]
+}
