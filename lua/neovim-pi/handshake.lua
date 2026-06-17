@@ -18,6 +18,7 @@ local NVIM_CAPABILITIES = {
   "nvim.buffer.reload",
   "nvim.window.cursor.set",
   "nvim.extmark.set",
+  "nvim.extmark.clear",
   "nvim.status.publish",
 }
 

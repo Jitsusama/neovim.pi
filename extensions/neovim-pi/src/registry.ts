@@ -15,6 +15,10 @@ type Handler = (args: unknown[]) => Promise<unknown> | unknown;
 
 const handlers = new Map<string, Handler>();
 
+type NotificationHandler = (args: unknown[]) => void;
+
+const notificationHandlers = new Map<string, NotificationHandler>();
+
 /** Register a handler under `pi.<name>`. Last registration wins. */
 export function addMethod(name: string, handler: Handler): void {
 	handlers.set(name, handler);
@@ -28,6 +32,16 @@ function seedDefault(name: string, handler: Handler): void {
 /** Remove a handler. Safe if absent. */
 export function removeMethod(name: string): void {
 	handlers.delete(name);
+}
+
+/** Register a fire-and-forget notification handler. Last registration wins. */
+export function addNotificationHandler(name: string, handler: NotificationHandler): void {
+	notificationHandlers.set(name, handler);
+}
+
+/** Remove a notification handler. Safe if absent. */
+export function removeNotificationHandler(name: string): void {
+	notificationHandlers.delete(name);
 }
 
 /** Wire the dispatcher into a freshly-attached client. */
@@ -68,6 +82,26 @@ export function registerHandlers(client: NeovimClient): void {
 			}
 		},
 	);
+
+	// Notifications are fire-and-forget: nvim sends them via
+	// `rpcnotify(pi_chan, "pi.dispatch", name, ...)`, which the npm
+	// client surfaces as a `notification` event with no response
+	// channel. The cursor stream rides this path. We route by the
+	// dispatched name and swallow handler errors, since there is no
+	// caller to report them back to.
+	client.on("notification", (method: string, args: unknown[]) => {
+		if (method !== "pi.dispatch") return;
+		const [name, ...rest] = args as [string, ...unknown[]];
+		const handler = notificationHandlers.get(name);
+		if (!handler) return;
+		try {
+			handler(rest);
+		} catch {
+			// A misbehaving notification handler must not take down the
+			// dispatch loop; there is no response channel to surface the
+			// error on, so the failure is dropped deliberately.
+		}
+	});
 
 	// Seed the always-on built-ins, but only when their slot is
 	// still unclaimed. registerHandlers runs on every attach, so an

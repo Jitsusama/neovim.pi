@@ -146,23 +146,39 @@ Used after the agent commits a fix.
 ### `nvim.window.cursor.set`
 
 ```
-nvim.window.cursor.set(bufnr: number, line: number, col: number) → void
+nvim.window.cursor.set(win: number, line: number, col: number) → void
 ```
 
-Move the user's cursor. If the buffer isn't the
-active one in any window, this is a soft prepare:
-when the user opens the buffer, the cursor lands at
-the requested position.
+Move the cursor in a window. `win` is a window handle,
+or 0 for the current window. `line` is 1-indexed;
+`col` is a 0-indexed byte offset and is clamped to the
+line length so an out-of-range column never errors. pi
+targets a window it owns; this does not take over the
+user's focused window unless pi passes that window's
+handle explicitly.
 
 ### `nvim.extmark.set`
 
 ```
-nvim.extmark.set(bufnr: number, ns: string, line: number, opts: any) → number
+nvim.extmark.set(bufnr: number, startRow: number, startCol: number, endRow: number, endCol: number, hlGroup: string) → number
 ```
 
-Place an extmark (highlight, virtual text, sign).
-`ns` is a plugin-defined namespace string; the plugin
-allocates the integer namespace internally.
+Highlight a range with an extmark in neovim-pi's own
+namespace and return the extmark id. Rows and columns
+are 0-indexed and the end is exclusive. The single
+namespace lets `nvim.extmark.clear` remove pi's marks
+without touching the user's (LSP, diagnostics, other
+plugins).
+
+### `nvim.extmark.clear`
+
+```
+nvim.extmark.clear(bufnr: number) → void
+```
+
+Remove every neovim-pi extmark in a buffer. Pairs with
+`nvim.extmark.set` to flash an edit highlight and then
+clear it.
 
 ### `nvim.status.publish`
 
