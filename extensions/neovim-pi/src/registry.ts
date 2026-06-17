@@ -20,6 +20,11 @@ export function addMethod(name: string, handler: Handler): void {
 	handlers.set(name, handler);
 }
 
+/** Seed a built-in handler only when the slot is unclaimed. */
+function seedDefault(name: string, handler: Handler): void {
+	if (!handlers.has(name)) handlers.set(name, handler);
+}
+
 /** Remove a handler. Safe if absent. */
 export function removeMethod(name: string): void {
 	handlers.delete(name);
@@ -64,10 +69,14 @@ export function registerHandlers(client: NeovimClient): void {
 		},
 	);
 
-	// Seed with the always-on built-ins. Other extensions add more.
-	addMethod("ping", () => "pong");
-	addMethod("hello", () => ({ name: "neovim-pi" }));
-	addMethod("buffer.uri.resolve", (args) => resolveUri(args));
+	// Seed the always-on built-ins, but only when their slot is
+	// still unclaimed. registerHandlers runs on every attach, so an
+	// unconditional re-seed here would clobber a scheme handler an
+	// extension already registered via addMethod (last write wins) —
+	// resetting `buffer.uri.resolve` to the default on every reattach.
+	seedDefault("ping", () => "pong");
+	seedDefault("hello", () => ({ name: "neovim-pi" }));
+	seedDefault("buffer.uri.resolve", (args) => resolveUri(args));
 }
 
 /**
