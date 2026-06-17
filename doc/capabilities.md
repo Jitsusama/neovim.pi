@@ -180,6 +180,57 @@ Remove every neovim-pi extmark in a buffer. Pairs with
 `nvim.extmark.set` to flash an edit highlight and then
 clear it.
 
+### `nvim.file.open`
+
+```
+nvim.file.open(path: string) → { bufnr: number, path: string, lines: number }
+```
+
+Open a real file from disk into pi's stage window: a
+window pi owns, created lazily to the side of wherever
+the human is, so the open never steals focus. The
+buffer is editable and is claimed in pi's ownership
+ledger. Returns the bufnr, the resolved absolute path
+and the line count.
+
+### `nvim.file.save`
+
+```
+nvim.file.save(bufnr: number) → { ok: boolean, modified: boolean, changedtick: number }
+```
+
+Write a stage buffer pi owns back to its file. Refuses
+a buffer pi did not open. A format-on-save autocmd, if
+the user has one, runs as part of the write and may
+change the content.
+
+### `nvim.text.getRange`
+
+```
+nvim.text.getRange(bufnr, startLine, startCol, endLine, endCol) → { text: string }
+```
+
+Read the text in a range. Lines are 1-indexed; columns
+are 0-indexed character offsets, end-exclusive. The
+character columns are translated to byte offsets
+internally so multibyte text is read correctly.
+
+### `nvim.text.setRange`
+
+```
+nvim.text.setRange(bufnr, startLine, startCol, endLine, endCol, replacement, expectedChangedtick?) →
+  { ok: true, changedtick, endLine, endCol, lines }
+  | { ok: false, error, conflict?, changedtick }
+```
+
+Replace a character range in a buffer pi owns, in the
+same coordinate system as `getRange`. Refuses a buffer
+pi did not open. When `expectedChangedtick` is given
+and no longer matches, refuses without writing so a
+stale view never clobbers a concurrent change. The
+write is one undo step, and the new text is briefly
+highlighted.
+
 ### `nvim.status.publish`
 
 ```

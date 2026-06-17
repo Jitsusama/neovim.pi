@@ -19,6 +19,10 @@ local NVIM_CAPABILITIES = {
   "nvim.window.cursor.set",
   "nvim.extmark.set",
   "nvim.extmark.clear",
+  "nvim.file.open",
+  "nvim.file.save",
+  "nvim.text.getRange",
+  "nvim.text.setRange",
   "nvim.status.publish",
 }
 

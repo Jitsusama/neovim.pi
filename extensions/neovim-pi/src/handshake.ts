@@ -39,6 +39,10 @@ export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.window.cursor.set",
 	"nvim.extmark.set",
 	"nvim.extmark.clear",
+	"nvim.file.open",
+	"nvim.file.save",
+	"nvim.text.getRange",
+	"nvim.text.setRange",
 ];
 
 export interface PeerInfo {
