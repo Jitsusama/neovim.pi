@@ -28,6 +28,7 @@ export function registerEditorTools(pi: ExtensionAPI, getClient: ClientResolver)
 	registerFileTool(pi, getClient);
 	registerTextTool(pi, getClient);
 	registerBufferTool(pi, getClient);
+	registerWindowTool(pi, getClient);
 }
 
 interface OpenResult {
@@ -155,21 +156,46 @@ interface SaveResult {
 	changedtick?: number;
 }
 
+interface BufferEntry {
+	bufnr: number;
+	name: string;
+	listed: boolean;
+	loaded: boolean;
+	modified: boolean;
+	owned: boolean;
+}
+
 function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 	pi.registerTool({
 		name: "nvim_buffer",
-		label: "Manage an nvim buffer",
+		label: "Inspect or manage nvim buffers",
 		description:
-			"Act on a buffer pi opened. `save` writes it back to its file on demand (pi warns rather than auto-saves, so this is how an edit reaches disk).",
+			"Act on the editor's buffers. `list` reports every buffer and which ones pi owns. `save` writes a buffer pi opened back to its file on demand (pi warns rather than auto-saves, so this is how an edit reaches disk).",
 		parameters: Type.Object({
-			action: Type.Union([Type.Literal("save")], {
-				description: "The buffer operation. Only `save` is supported today.",
+			action: Type.Union([Type.Literal("list"), Type.Literal("save")], {
+				description: "List all buffers (`list`) or save one pi owns (`save`).",
 			}),
-			bufnr: Type.Number({ description: "Buffer handle returned by nvim_file." }),
+			bufnr: Type.Optional(
+				Type.Number({ description: "Buffer handle for `save`. Returned by nvim_file." }),
+			),
 		}),
 		async execute(_id, params, _signal, _onUpdate, _ctx) {
 			const client = requireClient(getClient);
+
+			if (params.action === "list") {
+				requireCapability("nvim.buffer.list");
+				const list = await execLua<BufferEntry[]>(client, "buffers", "list", []);
+				const ownedCount = list.filter((b) => b.owned).length;
+				return {
+					content: [{ type: "text", text: `${list.length} buffers (${ownedCount} opened by pi)` }],
+					details: { buffers: list },
+				};
+			}
+
 			requireCapability("nvim.file.save");
+			if (params.bufnr === undefined) {
+				throw new Error("save requires `bufnr`");
+			}
 			const result = await execLua<SaveResult>(client, "file", "save", [params.bufnr]);
 			if (!result.ok) {
 				return {
@@ -185,6 +211,50 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 					},
 				],
 				details: result,
+			};
+		},
+	});
+}
+
+interface WindowEntry {
+	win: number;
+	bufnr: number;
+	name: string;
+	modified: boolean;
+	current: boolean;
+	is_stage: boolean;
+}
+
+interface Layout {
+	current_win: number;
+	stage_win: number | null;
+	tabs: { tabnr: number; windows: WindowEntry[] }[];
+}
+
+function registerWindowTool(pi: ExtensionAPI, getClient: ClientResolver): void {
+	pi.registerTool({
+		name: "nvim_window",
+		label: "Inspect nvim windows",
+		description:
+			"Inspect the editor's windows. `layout` reports every window across every tab, the focused window and pi's stage window, so the agent can see what is on screen.",
+		parameters: Type.Object({
+			action: Type.Union([Type.Literal("layout")], {
+				description: "The window operation. Only `layout` is supported today.",
+			}),
+		}),
+		async execute(_id, _params, _signal, _onUpdate, _ctx) {
+			const client = requireClient(getClient);
+			requireCapability("nvim.window.layout");
+			const layout = await execLua<Layout>(client, "window", "layout", []);
+			const winCount = layout.tabs.reduce((n, t) => n + t.windows.length, 0);
+			return {
+				content: [
+					{
+						type: "text",
+						text: `${winCount} windows across ${layout.tabs.length} tab(s); stage ${layout.stage_win ?? "none"}`,
+					},
+				],
+				details: layout,
 			};
 		},
 	});

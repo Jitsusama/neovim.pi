@@ -23,6 +23,8 @@ local NVIM_CAPABILITIES = {
   "nvim.file.save",
   "nvim.text.getRange",
   "nvim.text.setRange",
+  "nvim.window.layout",
+  "nvim.buffer.list",
   "nvim.status.publish",
 }
 

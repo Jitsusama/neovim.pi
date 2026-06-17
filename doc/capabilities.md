@@ -231,6 +231,36 @@ stale view never clobbers a concurrent change. The
 write is one undo step, and the new text is briefly
 highlighted.
 
+### `nvim.window.layout`
+
+```
+nvim.window.layout() → {
+  current_win: number,
+  stage_win: number | null,
+  tabs: { tabnr: number, windows: {
+    win: number, bufnr: number, name: string,
+    modified: boolean, current: boolean, is_stage: boolean,
+  }[] }[],
+}
+```
+
+Report the window and tab layout so the agent can see
+what is on screen: every window across every tab, the
+focused window and pi's stage window. Read-only.
+
+### `nvim.buffer.list`
+
+```
+nvim.buffer.list() → {
+  bufnr: number, name: string, listed: boolean,
+  loaded: boolean, modified: boolean, owned: boolean,
+}[]
+```
+
+List every buffer, including buffers loaded but not
+shown in any window. `owned` marks the buffers pi
+opened. Read-only.
+
 ### `nvim.status.publish`
 
 ```

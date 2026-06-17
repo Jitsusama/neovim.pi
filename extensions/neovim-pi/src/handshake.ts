@@ -43,6 +43,8 @@ export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.file.save",
 	"nvim.text.getRange",
 	"nvim.text.setRange",
+	"nvim.window.layout",
+	"nvim.buffer.list",
 ];
 
 export interface PeerInfo {
