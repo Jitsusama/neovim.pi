@@ -21,6 +21,17 @@ local stage_win = nil
 ---@type table<integer, boolean> every window pi created
 local owned_windows = {}
 
+--- A throwaway scratch buffer for a fresh stage window.
+---
+--- `bufhidden = wipe` so that when a real buffer replaces it
+--- (file.open, diff) the scratch is wiped rather than left
+--- hidden to accumulate across open and diff cycles.
+local function scratch_buffer()
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].bufhidden = "wipe"
+  return buf
+end
+
 --- Drop window handles that are no longer valid.
 local function prune()
   for win in pairs(owned_windows) do
@@ -53,7 +64,7 @@ function M.ensure()
     return live
   end
 
-  local scratch = vim.api.nvim_create_buf(false, true)
+  local scratch = scratch_buffer()
   stage_win = vim.api.nvim_open_win(scratch, false, { split = "right", win = 0 })
   owned_windows[stage_win] = true
   return stage_win
@@ -69,7 +80,7 @@ end
 function M.open(mode)
   local base = M.ensure()
   local direction = mode == "split" and "below" or "right"
-  local scratch = vim.api.nvim_create_buf(false, true)
+  local scratch = scratch_buffer()
   local win = vim.api.nvim_open_win(scratch, false, { split = direction, win = base })
   owned_windows[win] = true
   return win

@@ -161,5 +161,15 @@ describe("neovim-pi.cursor", function()
       assert.is_true(sel.empty)
       assert.are.equal("", sel.text)
     end)
+
+    it("reports a blockwise selection with a stable kind token", function()
+      local win = window_with_lines({ "abcd", "efgh", "ijkl" })
+      -- Ctrl-V (\22) starts blockwise visual; leave it so the
+      -- marks path reports the kind.
+      vim.cmd("normal! gg\22jl\27")
+      local sel = cursor.get_selection(win)
+
+      assert.are.equal("b", sel.kind)
+    end)
   end)
 end)

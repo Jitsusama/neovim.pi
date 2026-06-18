@@ -85,7 +85,7 @@ end
 ---@class neovim_pi.Selection
 ---@field win integer
 ---@field bufnr integer
----@field kind string visual kind: "v", "V" or blockwise
+---@field kind string visual kind: "v" charwise, "V" linewise, "b" blockwise
 ---@field start { line: integer, col: integer } 1-indexed line, 0-indexed col
 ---@field finish { line: integer, col: integer } inclusive end
 ---@field text string the selected text, lines joined with \n
@@ -114,6 +114,12 @@ function M.get_selection(win)
     if kind == "" then
       kind = "v"
     end
+  end
+
+  -- Blockwise is the raw Ctrl-V byte from mode()/visualmode();
+  -- report a stable, printable token alongside "v" and "V".
+  if kind == "\22" then
+    kind = "b"
   end
 
   if sline == 0 or eline == 0 then
@@ -168,6 +174,13 @@ end
 --- source is a constant: the stream only ever fires on a
 --- human move (see the module header), so there is nothing
 --- else it could be.
+---
+--- `M.get(0)` reads the current window, which is the human's:
+--- pi opens its windows with `enter = false` and never
+--- focuses them, and the one verb that does move focus
+--- (`window.focus`) deliberately puts the human there, so a
+--- move emitted afterwards genuinely belongs to the window
+--- they now occupy.
 local function emit()
   local snapshot = M.get(0)
   snapshot.source = "human"

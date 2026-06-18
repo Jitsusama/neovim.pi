@@ -38,6 +38,16 @@ describe("neovim-pi.stage", function()
       assert.is_true(vim.api.nvim_win_is_valid(second))
       assert.are_not.equal(first, second)
     end)
+
+    it("wipes its throwaway scratch when a real buffer replaces it", function()
+      local win = stage.ensure()
+      local scratch = vim.api.nvim_win_get_buf(win)
+
+      -- Displace the scratch the way file.open and diff do.
+      vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
+
+      assert.is_false(vim.api.nvim_buf_is_valid(scratch))
+    end)
   end)
 
   describe("current()", function()

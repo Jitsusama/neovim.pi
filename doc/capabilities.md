@@ -136,8 +136,10 @@ nvim.cursor.get(win: number) → { win, bufnr, name, line, col, mode }
 Report the live cursor position in a window (`win` is a
 handle, or 0 for the current window). The read-side mirror
 of `nvim.cursor.set`: it shares the 1-indexed line
-and 0-indexed column convention, so a get then set
-round-trips without translation.
+and 0-indexed **byte** column convention, so a get then set
+round-trips without translation. Note the column is a byte
+offset, unlike the `nvim.text` range tools, which speak
+character columns; translate before crossing between them.
 
 ### `nvim.cursor.set`
 
@@ -183,9 +185,12 @@ nvim.cursor.selection.get(win: number) → {
 ```
 
 Report the human's visual selection in a window: its kind
-(`v`, `V` or blockwise), the start and finish (1-indexed
-line, 0-indexed column, inclusive end) and the selected
-text. It reads the live anchor and cursor while visual mode
+(`v` charwise, `V` linewise, `b` blockwise), the start and
+finish (1-indexed line, 0-indexed **byte** column,
+inclusive end) and the selected text. The column unit is
+bytes, matching `nvim.cursor.get`/`set`; the `nvim.text`
+range tools speak character columns, so translate before
+feeding a selection into them. It reads the live anchor and cursor while visual mode
 is active, and the `'<`/`'>` marks once it ends, since
 those marks lag a selection behind until visual mode
 closes. `empty` is true when nothing has been selected.
