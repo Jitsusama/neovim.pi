@@ -99,23 +99,6 @@ describe("neovim-pi.cursor", function()
       assert.are.equal("human", seen[1].source)
     end)
 
-    it("does not emit while pi's own changes are suppressed", function()
-      window_with_lines({ "a", "b" })
-      local seen = watch_into(0)
-      cursor.suppress(fire)
-
-      assert.are.equal(0, #seen)
-    end)
-
-    it("resumes emitting after a suppressed block ends", function()
-      window_with_lines({ "a", "b" })
-      local seen = watch_into(0)
-      cursor.suppress(function() end)
-      fire()
-
-      assert.are.equal(1, #seen)
-    end)
-
     it("stops emitting after unwatch", function()
       window_with_lines({ "a", "b" })
       local seen = watch_into(0)

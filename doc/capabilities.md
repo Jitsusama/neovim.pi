@@ -155,11 +155,13 @@ through `CursorMoved`/`CursorMovedI` and notifies pi
 with a debounced snapshot on every move, so pi knows
 where the human is and whether they were just typing
 without polling. The snapshot is tagged `source =
-"human"`; pi's own API cursor moves do not fire these
-autocmds, so they never echo back. pi mutations that run
-ex-commands can wrap their work in the lua `suppress`
-helper to drop any move they do provoke. pi starts the
-stream on attach and tears it down on detach.
+"human"`, a constant: nvim does not fire `CursorMoved`
+for a programmatic `nvim_win_set_cursor` (`:h
+CursorMoved` fires only on a move the human makes), and
+pi edits in the windows it owns rather than the human's
+focused window, so pi's own cursor work never echoes
+into the stream. pi starts the stream on attach and
+tears it down on detach.
 
 ### `nvim.cursor.selection.get`
 

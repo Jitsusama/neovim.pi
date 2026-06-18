@@ -8,21 +8,23 @@
 -- The read side backs `nvim.cursor.stream`: pi watches the
 -- human's cursor through CursorMoved/CursorMovedI autocmds
 -- and pushes a debounced snapshot to a sink (rpcnotify, in
--- production). pi's own edits move the cursor too, so the
--- mutators wrap their work in `suppress` and those moves
--- never echo back as if the human made them.
+-- production). Every snapshot is genuinely the human's: pi's
+-- edits land in the windows pi owns rather than the human's
+-- focused window, and nvim does not fire CursorMoved for a
+-- programmatic `nvim_win_set_cursor` (`:h CursorMoved` fires
+-- only on a move the human makes), so pi's own cursor work
+-- never echoes into the stream.
 
 local uv = vim.uv or vim.loop
 
 local M = {}
 
---- Push-stream state. Module-level so suppress() can guard
---- emission no matter which call site triggers the move.
+--- Push-stream state. Module-level so the autocmd callback,
+--- the debounce timer and unwatch all share one handle set.
 local stream = {
   group = nil, ---@type integer?
   timer = nil, ---@type uv.uv_timer_t?
   debounce_ms = 40,
-  suppress_depth = 0,
   sink = nil, ---@type fun(payload: table)?
 }
 
@@ -162,7 +164,10 @@ local function default_sink(payload)
   require("neovim-pi.rpc").notify("cursor.moved", { payload })
 end
 
---- Sample the current cursor and hand it to the sink.
+--- Sample the current cursor and hand it to the sink. The
+--- source is a constant: the stream only ever fires on a
+--- human move (see the module header), so there is nothing
+--- else it could be.
 local function emit()
   local snapshot = M.get(0)
   snapshot.source = "human"
@@ -170,15 +175,11 @@ local function emit()
   sink(snapshot)
 end
 
---- React to a cursor-movement autocmd. Suppressed moves
---- (pi's own edits) are dropped; otherwise the emit is
---- debounced through a vim.uv timer so a burst of moves
---- collapses to one push. A zero debounce emits inline,
---- which keeps the autocmd path synchronous under test.
+--- React to a cursor-movement autocmd. The emit is debounced
+--- through a vim.uv timer so a burst of moves collapses to
+--- one push. A zero debounce emits inline, which keeps the
+--- autocmd path synchronous under test.
 local function on_event()
-  if stream.suppress_depth > 0 then
-    return
-  end
   if stream.debounce_ms <= 0 then
     emit()
     return
@@ -198,26 +199,11 @@ function M.watch(opts)
   opts = opts or {}
   stream.sink = opts.sink
   stream.debounce_ms = opts.debounce_ms or 40
-  stream.suppress_depth = 0
   stream.group = vim.api.nvim_create_augroup("neovim_pi_cursor_stream", { clear = true })
   vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
     group = stream.group,
     callback = on_event,
   })
-end
-
---- Run fn with cursor emission suppressed, so the moves
---- pi's own edits cause never echo back as human moves.
---- Re-entrant: the depth counter survives nesting, and the
---- block is unwound even when fn errors.
----@param fn fun()
-function M.suppress(fn)
-  stream.suppress_depth = stream.suppress_depth + 1
-  local ok, err = pcall(fn)
-  stream.suppress_depth = stream.suppress_depth - 1
-  if not ok then
-    error(err)
-  end
 end
 
 --- Stop streaming and tear the autocmds and timer down.
@@ -235,7 +221,6 @@ function M.unwatch()
     stream.timer = nil
   end
   stream.sink = nil
-  stream.suppress_depth = 0
 end
 
 return M
