@@ -384,6 +384,29 @@ each window so it acts on the right one. The buffers are
 plain file buffers, not claimed in the ownership ledger,
 since this is a comparison rather than an edit session.
 
+### `nvim.diff.pending`
+
+```
+nvim.diff.pending(bufnr: number) → {
+  ok: boolean, original?: { win, bufnr }, pending?: { win, bufnr }, error?: string
+}
+```
+
+Show an owned buffer's unsaved edits as a live diff against
+the file on disk — the read side of the editing flow. It
+follows the classic `:DiffOrig` pattern: a throwaway scratch
+buffer (`bufhidden = wipe`) holds the on-disk bytes on the
+left while the real buffer holds the pending edits on the
+right, and neovim recomputes the diff as pi keeps editing.
+This is an optional review lens, not a gate: editing the
+owned buffer already reflects in the editor live, and this
+just frames the pending change. "Accept" is `nvim.file.save`
+(persist) and "reject" is `nvim.file.reload` with `force`
+(discard); neither blocks. Refuses a buffer pi does not own
+or one with no file on disk, so it stays the third member of
+the save/reload trio. Tear down with `off` on each window
+plus `nvim.window.close`.
+
 ### `nvim.diff.off`
 
 ```

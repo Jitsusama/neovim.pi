@@ -613,18 +613,27 @@ interface DiffOffResult {
 	error?: string;
 }
 
+interface DiffPendingResult {
+	ok: boolean;
+	original?: DiffSide;
+	pending?: DiffSide;
+	error?: string;
+}
+
 function registerDiffTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 	pi.registerTool({
 		name: "nvim_diff",
 		label: "Show a diff in nvim",
 		description:
-			"Show a side-by-side diff in windows pi owns, never the window you are focused on. `files` diffs two real files against each other. `off` ends the diff in a pi-owned window; pair it with `nvim_window close` to remove the window afterwards. This is a view and changes neither file.",
+			"Show a side-by-side diff in windows pi owns, never the window you are focused on. `files` diffs two real files against each other. `pending` diffs a buffer's unsaved edits against the file on disk — an optional, live review lens over edits you have already made (it updates as you keep editing); save to accept those edits, reload to discard them, so it never blocks. `off` ends the diff in a pi-owned window; pair it with `nvim_window close` to remove the window afterwards. This is a view and changes no file on its own.",
 		parameters: Type.Object({
-			action: Type.Union([Type.Literal("files"), Type.Literal("off")], {
-				description: "Diff two files (`files`) or end a diff in a window (`off`).",
+			action: Type.Union([Type.Literal("files"), Type.Literal("pending"), Type.Literal("off")], {
+				description:
+					"Diff two files (`files`), diff a buffer's unsaved edits against disk (`pending`) or end a diff in a window (`off`).",
 			}),
 			left: Type.Optional(Type.String({ description: "Path to the left file for `files`." })),
 			right: Type.Optional(Type.String({ description: "Path to the right file for `files`." })),
+			bufnr: Type.Optional(Type.Number({ description: "Buffer handle for `pending`." })),
 			win: Type.Optional(Type.Number({ description: "Window handle for `off`." })),
 		}),
 		async execute(_id, params, _signal, _onUpdate, _ctx) {
@@ -644,6 +653,29 @@ function registerDiffTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 						{
 							type: "text",
 							text: `diffing ${params.left} (win ${result.left.win}) against ${params.right} (win ${result.right.win})`,
+						},
+					],
+					details: result,
+				};
+			}
+
+			if (params.action === "pending") {
+				requireCapability("nvim.diff.pending");
+				if (params.bufnr === undefined) {
+					throw new Error("pending requires `bufnr`");
+				}
+				const result = await execLua<DiffPendingResult>(client, "diff", "pending", [params.bufnr]);
+				if (!result.ok) {
+					return {
+						content: [{ type: "text", text: `refused: ${result.error ?? "unknown reason"}` }],
+						details: result,
+					};
+				}
+				return {
+					content: [
+						{
+							type: "text",
+							text: `diffing unsaved edits in bufnr ${params.bufnr} (win ${result.pending?.win}) against disk (win ${result.original?.win}); save to accept, reload to discard`,
 						},
 					],
 					details: result,

@@ -1,4 +1,5 @@
 local diff = require("neovim-pi.diff")
+local file = require("neovim-pi.file")
 local stage = require("neovim-pi.stage")
 local owned = require("neovim-pi.owned")
 
@@ -74,6 +75,51 @@ describe("neovim-pi.diff", function()
       local r = diff.off(human)
 
       assert.is_false(r.ok)
+    end)
+  end)
+
+  describe("pending()", function()
+    it("diffs the on-disk bytes against the buffer's unsaved edits", function()
+      local human = vim.api.nvim_get_current_win()
+      local path = temp_file({ "disk one", "disk two" })
+      local opened = file.open(path)
+      vim.api.nvim_buf_set_lines(opened.bufnr, 0, -1, false, { "disk one", "EDITED two" })
+
+      local result = diff.pending(opened.bufnr)
+
+      assert.is_true(result.ok)
+      assert.is_true(vim.wo[result.original.win].diff)
+      assert.is_true(vim.wo[result.pending.win].diff)
+      assert.are.equal(human, vim.api.nvim_get_current_win())
+    end)
+
+    it("holds the on-disk content on the original side, the edits on the pending side", function()
+      local path = temp_file({ "disk" })
+      local opened = file.open(path)
+      vim.api.nvim_buf_set_lines(opened.bufnr, 0, -1, false, { "edited" })
+
+      local result = diff.pending(opened.bufnr)
+
+      assert.are.same({ "disk" }, vim.api.nvim_buf_get_lines(result.original.bufnr, 0, -1, false))
+      assert.are.same({ "edited" }, vim.api.nvim_buf_get_lines(result.pending.bufnr, 0, -1, false))
+      assert.are.equal(opened.bufnr, result.pending.bufnr)
+    end)
+
+    it("refuses a buffer pi does not own", function()
+      local stray = vim.api.nvim_create_buf(true, false)
+
+      local result = diff.pending(stray)
+
+      assert.is_false(result.ok)
+    end)
+
+    it("refuses an owned buffer with no file on disk", function()
+      local scratch = vim.api.nvim_create_buf(false, true)
+      owned.claim(scratch)
+
+      local result = diff.pending(scratch)
+
+      assert.is_false(result.ok)
     end)
   end)
 end)
