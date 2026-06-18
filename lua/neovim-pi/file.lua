@@ -28,29 +28,36 @@ function M.open(path, opts)
   local mode = opts.mode or "current"
   local abspath = vim.fn.fnamemodify(path, ":p")
 
-  -- pi never edits the human's dirty work. If a buffer for this
-  -- file is already loaded with unsaved changes and pi does not
-  -- own it, refuse rather than adopt it: nvim has one buffer per
-  -- file, so adopting would route pi's edits straight into the
-  -- human's unsaved buffer.
-  local existing = vim.fn.bufnr(abspath)
-  if
-    existing >= 0
-    and vim.api.nvim_buf_is_loaded(existing)
-    and vim.bo[existing].modified
-    and not owned.has(existing)
-  then
+  -- nvim keys buffers by file, so resolve the path to its
+  -- buffer through bufadd, which returns the existing buffer
+  -- when one is already loaded for this file and creates a
+  -- fresh (unloaded) one otherwise. We ask bufadd rather than
+  -- vim.fn.bufnr because bufnr matches its argument as a regex
+  -- and would miss a path with metacharacters (a literal dot).
+  local bufnr = vim.fn.bufadd(abspath)
+
+  -- A buffer already loaded that pi does not own is the
+  -- human's (a fresh bufadd is unloaded until we load it
+  -- below). pi never edits the human's dirty work, so a
+  -- modified one is refused outright. A clean one is shown but
+  -- left unclaimed: the edit path and the destructive verbs
+  -- all gate on ownership, so not claiming keeps the human's
+  -- buffer the human's to touch rather than adopting it and
+  -- exposing it to reload/delete.
+  local human_owned = vim.api.nvim_buf_is_loaded(bufnr) and not owned.has(bufnr)
+  if human_owned and vim.bo[bufnr].modified then
     error("file is open in nvim with unsaved changes; pi will not edit the human's dirty buffer")
   end
 
-  local bufnr = vim.fn.bufadd(abspath)
   vim.fn.bufload(bufnr)
   vim.bo[bufnr].buflisted = true
 
   local win = mode == "current" and stage.ensure() or stage.open(mode)
   vim.api.nvim_win_set_buf(win, bufnr)
 
-  owned.claim(bufnr)
+  if not human_owned then
+    owned.claim(bufnr)
+  end
 
   if opts.line then
     cursor.set(win, opts.line, opts.col or 0)

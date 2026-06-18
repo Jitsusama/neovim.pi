@@ -70,6 +70,21 @@ describe("neovim-pi.file", function()
       assert.is_false(owned.has(human_buf))
     end)
 
+    it("shows but does not claim a clean buffer the human already has open", function()
+      local path = temp_file({ "human's file" })
+      local human_buf = vim.fn.bufadd(path)
+      vim.fn.bufload(human_buf)
+      assert.is_false(vim.bo[human_buf].modified)
+
+      local result = file.open(path)
+
+      -- Same underlying buffer (nvim keys buffers by file)...
+      assert.are.equal(human_buf, result.bufnr)
+      -- ...but pi never claims it, so the edit and destructive
+      -- verbs (which gate on ownership) refuse to touch it.
+      assert.is_false(owned.has(result.bufnr))
+    end)
+
     it("reopens a dirty buffer pi already owns without error", function()
       local path = temp_file({ "original" })
       local first = file.open(path)
