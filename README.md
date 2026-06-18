@@ -57,6 +57,10 @@ Or vendor the path into your `~/.pi/settings.json`:
 
 ### nvim side
 
+Requires Neovim 0.11 or newer: the editor-control tools use
+the `vim.str_byteindex` encoding-string signature that
+landed in 0.11 for the character-to-byte column translation.
+
 **`lazy.nvim`:**
 
 ```lua

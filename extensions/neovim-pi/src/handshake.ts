@@ -33,7 +33,7 @@ export const PI_CAPABILITIES: readonly string[] = [
 export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.buffer.open",
 	"nvim.buffer.markStale",
-	"nvim.window.cursor.set",
+	"nvim.cursor.set",
 	"nvim.cursor.get",
 	"nvim.cursor.stream",
 	"nvim.cursor.selection.get",
@@ -54,6 +54,7 @@ export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.buffer.info",
 	"nvim.buffer.switch",
 	"nvim.buffer.delete",
+	"nvim.status.publish",
 ];
 
 export interface PeerInfo {

@@ -28,7 +28,9 @@ local FLASH_NS = vim.api.nvim_create_namespace("neovim-pi-flash")
 ---
 --- Clamped to the line's length so a column past the end
 --- never raises. `vim.str_byteindex` with the "utf-32"
---- encoding treats the index as a codepoint count.
+--- encoding treats the index as a codepoint count; this
+--- encoding-string signature requires Neovim 0.11+ (the
+--- plugin's declared floor, see the README).
 ---@param line string
 ---@param char_col integer
 ---@return integer byte offset

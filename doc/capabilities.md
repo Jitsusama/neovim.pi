@@ -10,11 +10,22 @@ here first, then in both reference implementations.
 
 ## Versioning
 
-Within a major version (e.g. `0.x`), flags are
-additive: adding a flag is a minor bump; removing or
-changing the semantics of a flag is a major bump. A
-peer that doesn't recognise a flag silently ignores
-it.
+Capability flags, not the protocol version, are the unit
+of compatibility. Each flag is additive and negotiated on
+its own: a peer that stops advertising a flag is treated
+as not supporting it, so the other side degrades through
+the same capability check it always runs, with no version
+comparison involved. When a flag's shape or semantics
+change, it is given a new name rather than mutated in
+place, so the rename flows through that same negotiation
+(an old peer asks for the old name, does not find it and
+degrades) instead of silently mismatching under an
+unchanged name.
+
+The protocol version tracks the envelope the peers speak,
+not the set of capabilities, and the handshake does not
+gate compatibility on it. Pre-1.0 it carries no ceremony:
+adding, removing or renaming a flag does not bump it.
 
 ## pi-side capabilities
 
@@ -124,14 +135,14 @@ nvim.cursor.get(win: number) → { win, bufnr, name, line, col, mode }
 
 Report the live cursor position in a window (`win` is a
 handle, or 0 for the current window). The read-side mirror
-of `nvim.window.cursor.set`: it shares the 1-indexed line
+of `nvim.cursor.set`: it shares the 1-indexed line
 and 0-indexed column convention, so a get then set
 round-trips without translation.
 
-### `nvim.window.cursor.set`
+### `nvim.cursor.set`
 
 ```
-nvim.window.cursor.set(win: number, line: number, col: number) → void
+nvim.cursor.set(win: number, line: number, col: number) → void
 ```
 
 Move the cursor in a window. `win` is a window handle,

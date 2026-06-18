@@ -82,7 +82,7 @@ describe("peerHas", () => {
 			return { version: "0.1.0", capabilities: ["nvim.buffer.open"] };
 		});
 		await performHandshake(client);
-		expect(peerHas("nvim.window.cursor.set")).toBe(false);
+		expect(peerHas("nvim.cursor.set")).toBe(false);
 		expect(peerHas("totally.made.up")).toBe(false);
 	});
 });

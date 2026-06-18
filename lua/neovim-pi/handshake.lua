@@ -13,7 +13,7 @@ local PROTOCOL_VERSION = "0.1.0"
 local NVIM_CAPABILITIES = {
   "nvim.buffer.open",
   "nvim.buffer.markStale",
-  "nvim.window.cursor.set",
+  "nvim.cursor.set",
   "nvim.cursor.get",
   "nvim.cursor.stream",
   "nvim.cursor.selection.get",

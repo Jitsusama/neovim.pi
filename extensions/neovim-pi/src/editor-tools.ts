@@ -585,7 +585,7 @@ function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			if (params.line === undefined) {
 				throw new Error("set requires `line`");
 			}
-			requireCapability("nvim.window.cursor.set");
+			requireCapability("nvim.cursor.set");
 			const col = params.col ?? 0;
 			await execLua(client, "cursor", "set", [params.win, params.line, col]);
 			return {

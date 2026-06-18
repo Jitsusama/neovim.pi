@@ -1,6 +1,6 @@
 -- Cursor control and the human-cursor push stream.
 --
--- The write side backs `nvim.window.cursor.set`: pi moves
+-- The write side backs `nvim.cursor.set`: pi moves
 -- the cursor in a window it owns; this never targets the
 -- human's focused window unless pi passes that window id
 -- explicitly. Window 0 means the current window.
