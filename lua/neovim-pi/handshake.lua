@@ -14,6 +14,7 @@ local NVIM_CAPABILITIES = {
   "nvim.buffer.open",
   "nvim.buffer.markStale",
   "nvim.window.cursor.set",
+  "nvim.cursor.stream",
   "nvim.extmark.set",
   "nvim.extmark.clear",
   "nvim.file.open",

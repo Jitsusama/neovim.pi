@@ -11,6 +11,7 @@
 
 import type { NeovimClient } from "neovim";
 import { attach } from "neovim";
+import { clearCursor } from "./cursor.js";
 import { performHandshake } from "./handshake.js";
 import { silentLogger } from "./logger.js";
 import { registerHandlers } from "./registry.js";
@@ -43,6 +44,17 @@ export async function attachToSocket(socket: string): Promise<NeovimClient> {
 	registerHandlers(next);
 	await performHandshake(next);
 
+	// Begin the human-cursor push stream. The receiver was wired
+	// at activation (installCursorStream); this tells nvim to
+	// start emitting debounced CursorMoved/CursorMovedI snapshots.
+	// Best-effort: an nvim whose plugin predates the stream just
+	// errors, which we swallow so pairing still succeeds.
+	try {
+		await next.request("nvim_exec_lua", ['require("neovim-pi.cursor").watch()', []]);
+	} catch {
+		// No cursor stream on this nvim; degrade quietly.
+	}
+
 	next.on("disconnect", () => {
 		if (client === next) {
 			client = null;
@@ -70,6 +82,19 @@ export async function detachFromNeovim(): Promise<void> {
 	const c = client;
 	client = null;
 	pairedSocket = null;
+
+	// Drop the cached human cursor; a stale position must not
+	// outlive the pairing. We reach here only on a clean detach
+	// (the disconnect handler nulls `client` first, so this
+	// function returns early in that path), so the socket is
+	// still live and the unwatch request completes promptly.
+	clearCursor();
+	try {
+		await c.request("nvim_exec_lua", ['require("neovim-pi.cursor").unwatch()', []]);
+	} catch {
+		// nvim may already be tearing down; the stream is harmless
+		// if it lingers, and a later attach re-clears the augroup.
+	}
 	try {
 		const stream = (c as unknown as { transport?: { _stream?: { end?: () => void } } }).transport
 			?._stream;

@@ -130,6 +130,25 @@ targets a window it owns; this does not take over the
 user's focused window unless pi passes that window's
 handle explicitly.
 
+### `nvim.cursor.stream`
+
+```
+nvim.cursor.stream → push: cursor.moved({
+  win, bufnr, name, line, col, mode, source
+})
+```
+
+A push, not a request: nvim watches the human's cursor
+through `CursorMoved`/`CursorMovedI` and notifies pi
+with a debounced snapshot on every move, so pi knows
+where the human is and whether they were just typing
+without polling. The snapshot is tagged `source =
+"human"`; pi's own API cursor moves do not fire these
+autocmds, so they never echo back. pi mutations that run
+ex-commands can wrap their work in the lua `suppress`
+helper to drop any move they do provoke. pi starts the
+stream on attach and tears it down on detach.
+
 ### `nvim.extmark.set`
 
 ```
