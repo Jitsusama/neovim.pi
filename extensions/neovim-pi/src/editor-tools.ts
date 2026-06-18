@@ -201,6 +201,14 @@ interface DeleteResult {
 	error?: string;
 }
 
+interface ReloadResult {
+	ok: boolean;
+	modified?: boolean;
+	changedtick?: number;
+	lines?: number;
+	error?: string;
+}
+
 interface InfoResult extends BufferEntry {
 	ok: boolean;
 	lines: number;
@@ -213,30 +221,31 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 		name: "nvim_buffer",
 		label: "Inspect or manage nvim buffers",
 		description:
-			"Act on the editor's real-file buffers. `list` reports every buffer and which ones pi owns; `info` reports one buffer in detail. `save` writes a buffer pi opened back to its file (pi warns rather than auto-saves, so this is how an edit reaches disk). `switch` shows an existing buffer on pi's stage window. `delete` removes a buffer pi opened, refusing one it does not own and refusing a buffer with unsaved changes unless `force` discards them.",
+			"Act on the editor's real-file buffers. `list` reports every buffer and which ones pi owns; `info` reports one buffer in detail. `save` writes a buffer pi opened back to its file (pi warns rather than auto-saves, so this is how an edit reaches disk). `reload` re-reads a buffer pi opened from disk, the inverse of save. `switch` shows an existing buffer on pi's stage window. `delete` removes a buffer pi opened. `reload` and `delete` refuse a buffer pi does not own and refuse a buffer with unsaved changes unless `force` discards them.",
 		parameters: Type.Object({
 			action: Type.Union(
 				[
 					Type.Literal("list"),
 					Type.Literal("info"),
 					Type.Literal("save"),
+					Type.Literal("reload"),
 					Type.Literal("switch"),
 					Type.Literal("delete"),
 				],
 				{
 					description:
-						"List every buffer (`list`), report one in detail (`info`), save one pi owns (`save`), show one on pi's stage (`switch`) or remove one pi owns (`delete`).",
+						"List every buffer (`list`), report one in detail (`info`), save one pi owns (`save`), reload one pi owns from disk (`reload`), show one on pi's stage (`switch`) or remove one pi owns (`delete`).",
 				},
 			),
 			bufnr: Type.Optional(
 				Type.Number({
 					description:
-						"Buffer handle for `info`, `save`, `switch` and `delete`. Returned by nvim_file or nvim_buffer list.",
+						"Buffer handle for `info`, `save`, `reload`, `switch` and `delete`. Returned by nvim_file or nvim_buffer list.",
 				}),
 			),
 			force: Type.Optional(
 				Type.Boolean({
-					description: "For `delete`: discard unsaved changes instead of refusing.",
+					description: "For `delete` and `reload`: discard unsaved changes instead of refusing.",
 				}),
 			),
 		}),
@@ -314,6 +323,30 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 				return {
 					content: [
 						{ type: "text", text: `showing bufnr ${result.bufnr} in window ${result.win}` },
+					],
+					details: result,
+				};
+			}
+
+			if (params.action === "reload") {
+				requireCapability("nvim.file.reload");
+				const reloadArgs: unknown[] = [params.bufnr];
+				if (params.force !== undefined) {
+					reloadArgs.push(params.force);
+				}
+				const result = await execLua<ReloadResult>(client, "file", "reload", reloadArgs);
+				if (!result.ok) {
+					const reason = result.modified
+						? `refused: buffer ${params.bufnr} has unsaved changes; pass force to discard them`
+						: `refused: ${result.error ?? "unknown reason"}`;
+					return { content: [{ type: "text", text: reason }], details: result };
+				}
+				return {
+					content: [
+						{
+							type: "text",
+							text: `reloaded bufnr ${params.bufnr} (${result.lines} lines, changedtick ${result.changedtick})`,
+						},
 					],
 					details: result,
 				};

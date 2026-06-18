@@ -38,6 +38,7 @@ export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.extmark.clear",
 	"nvim.file.open",
 	"nvim.file.save",
+	"nvim.file.reload",
 	"nvim.text.getRange",
 	"nvim.text.setRange",
 	"nvim.window.layout",

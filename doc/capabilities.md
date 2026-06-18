@@ -183,6 +183,23 @@ a buffer pi did not open. A format-on-save autocmd, if
 the user has one, runs as part of the write and may
 change the content.
 
+### `nvim.file.reload`
+
+```
+nvim.file.reload(bufnr: number, force?: boolean) →
+  { ok: true, modified, changedtick, lines }
+  | { ok: false, modified?, error }
+```
+
+Reload a buffer pi owns from its file on disk: the
+inverse of `save`, via `:edit!`. Refuses a buffer pi did
+not open. Because `:edit!` silently discards unsaved
+buffer changes, a modified buffer is a confirm trigger:
+reload reports `modified: true` rather than discarding,
+and `force` discards the edit and goes through. Returns
+the post-reload changedtick and line count so the caller
+can re-arm the edit path's conflict check.
+
 ### `nvim.text.getRange`
 
 ```

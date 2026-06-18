@@ -88,4 +88,41 @@ function M.save(bufnr)
   }
 end
 
+--- Reload a stage buffer pi owns from its file on disk.
+---
+--- The inverse of `save`: it pulls the file's current bytes
+--- back into the buffer with `:edit!`, which silently discards
+--- any unsaved buffer changes. That makes reload destructive,
+--- so it mirrors `delete`: only buffers pi owns are pi's to
+--- reload, and a modified buffer is a confirm trigger reported
+--- as `modified` rather than discarded, with `force` to go
+--- through. Returns the post-reload changedtick and line count
+--- so the caller can re-arm the edit path's conflict check.
+---@param bufnr integer
+---@param force boolean?
+---@return { ok: boolean, modified: boolean?, changedtick: integer?, lines: integer?, error: string? }
+function M.reload(bufnr, force)
+  if not owned.has(bufnr) then
+    return { ok = false, error = "pi did not open this buffer" }
+  end
+  if not force and vim.bo[bufnr].modified then
+    return {
+      ok = false,
+      modified = true,
+      error = "buffer has unsaved changes; pass force to discard them",
+    }
+  end
+
+  vim.api.nvim_buf_call(bufnr, function()
+    vim.cmd("edit!")
+  end)
+
+  return {
+    ok = true,
+    modified = vim.bo[bufnr].modified,
+    changedtick = vim.api.nvim_buf_get_changedtick(bufnr),
+    lines = vim.api.nvim_buf_line_count(bufnr),
+  }
+end
+
 return M
