@@ -1,0 +1,30 @@
+local owned = require("neovim-pi.owned")
+
+describe("neovim-pi.owned", function()
+  before_each(function()
+    owned.clear()
+  end)
+
+  it("does not own a buffer it was never told about", function()
+    assert.is_false(owned.has(42))
+  end)
+
+  it("owns a buffer once claimed", function()
+    owned.claim(7)
+    assert.is_true(owned.has(7))
+  end)
+
+  it("stops owning a buffer once released", function()
+    owned.claim(7)
+    owned.release(7)
+    assert.is_false(owned.has(7))
+  end)
+
+  it("forgets every claim on clear", function()
+    owned.claim(1)
+    owned.claim(2)
+    owned.clear()
+    assert.is_false(owned.has(1))
+    assert.is_false(owned.has(2))
+  end)
+end)

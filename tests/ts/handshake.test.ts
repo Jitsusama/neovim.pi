@@ -82,7 +82,7 @@ describe("peerHas", () => {
 			return { version: "0.1.0", capabilities: ["nvim.buffer.open"] };
 		});
 		await performHandshake(client);
-		expect(peerHas("nvim.window.cursor.set")).toBe(false);
+		expect(peerHas("nvim.cursor.set")).toBe(false);
 		expect(peerHas("totally.made.up")).toBe(false);
 	});
 });
@@ -91,11 +91,11 @@ describe("getPeerInfo", () => {
 	it("returns the most recent peer info after a handshake", async () => {
 		const client = fakeClient((method) => {
 			if (method === "nvim_get_api_info") return [7, {}];
-			return { version: "1.2.3", capabilities: ["nvim.buffer.reload"] };
+			return { version: "1.2.3", capabilities: ["nvim.buffer.markStale"] };
 		});
 		await performHandshake(client);
 		const peer = getPeerInfo();
 		expect(peer?.version).toBe("1.2.3");
-		expect(peer?.capabilities).toContain("nvim.buffer.reload");
+		expect(peer?.capabilities).toContain("nvim.buffer.markStale");
 	});
 });

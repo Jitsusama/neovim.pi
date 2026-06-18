@@ -78,6 +78,21 @@ function M.config()
   return vim.deepcopy(config)
 end
 
+--- Reset pi-owned editor state on detach.
+---
+--- nvim outlives a pi pairing, and so do these lua module
+--- tables, so a reattach to the same nvim would otherwise
+--- inherit the prior session's buffer claims and stage window
+--- handles. Dropping the ownership ledger, forgetting the
+--- stage windows (without closing them, so the human keeps
+--- whatever they were shown) and stopping the cursor stream
+--- makes the next pairing start clean. Idempotent.
+function M.reset()
+  require("neovim-pi.owned").clear()
+  require("neovim-pi.stage").forget()
+  require("neovim-pi.cursor").unwatch()
+end
+
 --- Returns true if a pi peer is currently attached.
 function M.is_attached()
   return require("neovim-pi.rpc").is_attached()

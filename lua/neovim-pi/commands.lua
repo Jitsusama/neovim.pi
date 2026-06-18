@@ -23,6 +23,9 @@ end
 
 local function detach()
   require("neovim-pi.rpc").clear_channel()
+  -- Drop pi's ownership ledger and stage windows too, so an
+  -- in-nvim detach leaves no stale claims for the next pairing.
+  require("neovim-pi").reset()
   vim.notify("neovim-pi: detached", vim.log.levels.INFO)
 end
 

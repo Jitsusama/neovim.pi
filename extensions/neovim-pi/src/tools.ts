@@ -43,66 +43,6 @@ export function registerNvimTools(pi: ExtensionAPI, getClient: ClientResolver): 
 			};
 		},
 	});
-
-	pi.registerTool({
-		name: "nvim_buffer_close",
-		label: "Close buffer in nvim",
-		description: "Close a `pi://` buffer in nvim. No-op if the buffer is absent.",
-		parameters: Type.Object({
-			uri: Type.String(),
-		}),
-		async execute(_id, params, _signal, _onUpdate, _ctx) {
-			const client = requireClient(getClient);
-			await client.request("nvim_exec_lua", [
-				`return require("neovim-pi.buffer").close(...)`,
-				[params.uri],
-			]);
-			return {
-				content: [{ type: "text", text: `closed ${params.uri}` }],
-				details: {},
-			};
-		},
-	});
-
-	pi.registerTool({
-		name: "nvim_buffer_is_modified",
-		label: "Check buffer dirty state",
-		description: "Return true if any nvim buffer pointing at this path has unsaved changes.",
-		parameters: Type.Object({
-			path: Type.String(),
-		}),
-		async execute(_id, params, _signal, _onUpdate, _ctx) {
-			const client = requireClient(getClient);
-			const dirty = (await client.request("nvim_exec_lua", [
-				`return require("neovim-pi.buffer").is_modified(...)`,
-				[params.path],
-			])) as boolean;
-			return {
-				content: [{ type: "text", text: dirty ? "modified" : "clean" }],
-				details: { modified: dirty },
-			};
-		},
-	});
-
-	pi.registerTool({
-		name: "nvim_buffer_reload",
-		label: "Reload buffer from disk",
-		description: "Force-reload buffers that point at a path so they pick up agent edits.",
-		parameters: Type.Object({
-			path: Type.String(),
-		}),
-		async execute(_id, params, _signal, _onUpdate, _ctx) {
-			const client = requireClient(getClient);
-			await client.request("nvim_exec_lua", [
-				`return require("neovim-pi.buffer").reload(...)`,
-				[params.path],
-			]);
-			return {
-				content: [{ type: "text", text: `reloaded ${params.path}` }],
-				details: {},
-			};
-		},
-	});
 }
 
 function requireClient(get: ClientResolver): NeovimClient {

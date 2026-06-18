@@ -1,7 +1,13 @@
 import { EventEmitter } from "node:events";
 import type { NeovimClient } from "neovim";
 import { afterEach, describe, expect, it } from "vitest";
-import { addMethod, registerHandlers, removeMethod } from "../../extensions/neovim-pi/src/registry.js";
+import {
+	addMethod,
+	addNotificationHandler,
+	registerHandlers,
+	removeMethod,
+	removeNotificationHandler,
+} from "../../extensions/neovim-pi/src/registry.js";
 
 /**
  * The npm `neovim` client surfaces incoming requests as a
@@ -14,6 +20,7 @@ function fakeClient(): {
 	client: NeovimClient;
 	requests: { method: string; args: unknown[]; resp: CapturedResp }[];
 	emit: (method: string, args: unknown[]) => Promise<CapturedResp>;
+	emitNotification: (method: string, args: unknown[]) => void;
 } {
 	const emitter = new EventEmitter();
 	const requests: { method: string; args: unknown[]; resp: CapturedResp }[] = [];
@@ -29,7 +36,11 @@ function fakeClient(): {
 		return resp;
 	}
 
-	return { client, requests, emit };
+	function emitNotification(method: string, args: unknown[]): void {
+		emitter.emit("notification", method, args);
+	}
+
+	return { client, requests, emit, emitNotification };
 }
 
 class CapturedResp {
@@ -54,6 +65,22 @@ describe("registerHandlers", () => {
 		removeMethod("custom.echo");
 		removeMethod("custom.boom");
 		removeMethod("buffer.uri.resolve");
+		removeNotificationHandler("cursor.update");
+	});
+
+	it("routes a pi.dispatch notification to a registered notification handler", () => {
+		const received: unknown[][] = [];
+		addNotificationHandler("cursor.update", (args) => {
+			received.push(args);
+		});
+		const { emitNotification } = fakeClient();
+		emitNotification("pi.dispatch", ["cursor.update", { line: 5, col: 2 }]);
+		expect(received).toEqual([[{ line: 5, col: 2 }]]);
+	});
+
+	it("ignores a notification whose dispatched name has no handler", () => {
+		const { emitNotification } = fakeClient();
+		expect(() => emitNotification("pi.dispatch", ["nobody.listening", 1])).not.toThrow();
 	});
 
 	it("seeds a default `buffer.uri.resolve` handler", async () => {

@@ -60,48 +60,6 @@ function M.open(uri, focus)
   return bufnr
 end
 
---- Close a `pi://` buffer by URI. Returns true if removed.
----@param uri string
-function M.close(uri)
-  local bufnr = vim.fn.bufnr(uri)
-  if bufnr < 0 then
-    return false
-  end
-  vim.api.nvim_buf_delete(bufnr, { force = true })
-  return true
-end
-
---- True when any buffer for `path` has unsaved changes.
----@param path string
-function M.is_modified(path)
-  local target = vim.fs.normalize(path)
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) then
-      local name = vim.fs.normalize(vim.api.nvim_buf_get_name(b))
-      if name == target and vim.bo[b].modified then
-        return true
-      end
-    end
-  end
-  return false
-end
-
---- Force-reload any buffer for `path` from disk.
----@param path string
-function M.reload(path)
-  local target = vim.fs.normalize(path)
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) then
-      local name = vim.fs.normalize(vim.api.nvim_buf_get_name(b))
-      if name == target then
-        vim.api.nvim_buf_call(b, function()
-          vim.cmd("edit!")
-        end)
-      end
-    end
-  end
-end
-
 --- Mark a `pi://` buffer as stale (pi has disconnected).
 ---@param uri string
 function M.mark_stale(uri)

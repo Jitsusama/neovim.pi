@@ -32,12 +32,29 @@ export const PI_CAPABILITIES: readonly string[] = [
 /** Capabilities the nvim peer is expected to expose (best-effort check). */
 export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.buffer.open",
-	"nvim.buffer.close",
 	"nvim.buffer.markStale",
-	"nvim.buffer.isModified",
-	"nvim.buffer.reload",
-	"nvim.window.cursor.set",
+	"nvim.cursor.set",
+	"nvim.cursor.get",
+	"nvim.cursor.stream",
+	"nvim.cursor.selection.get",
+	"nvim.diff.files",
+	"nvim.diff.pending",
+	"nvim.diff.off",
 	"nvim.extmark.set",
+	"nvim.extmark.clear",
+	"nvim.file.open",
+	"nvim.file.save",
+	"nvim.file.reload",
+	"nvim.text.getRange",
+	"nvim.text.setRange",
+	"nvim.window.layout",
+	"nvim.window.focus",
+	"nvim.window.close",
+	"nvim.buffer.list",
+	"nvim.buffer.info",
+	"nvim.buffer.switch",
+	"nvim.buffer.delete",
+	"nvim.status.publish",
 ];
 
 export interface PeerInfo {

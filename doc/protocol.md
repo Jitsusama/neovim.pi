@@ -81,11 +81,8 @@ the full catalogue.
 | Flag | Meaning |
 |---|---|
 | `nvim.buffer.open` | Open a `pi://` URI as a buffer. |
-| `nvim.buffer.close` | Close a `pi://` buffer. |
 | `nvim.buffer.markStale` | Flag a buffer as stale (pi disconnected). |
-| `nvim.buffer.isModified` | Report whether any buffer for a path is dirty. |
-| `nvim.buffer.reload` | Force-reload buffers from disk. |
-| `nvim.window.cursor.set` | Move the cursor in the user's active window. |
+| `nvim.cursor.set` | Move the cursor in a window pi owns (or the named window). |
 | `nvim.extmark.set` | Place an extmark (highlight, virtual text). |
 | `nvim.status.publish` | Render pi status fragments somewhere. |
 

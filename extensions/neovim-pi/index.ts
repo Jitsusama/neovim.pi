@@ -22,7 +22,9 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { attachToSocket, detachFromNeovim, getClient } from "./src/attach.js";
+import { installCursorStream } from "./src/cursor.js";
 import { socketExists } from "./src/discovery.js";
+import { registerEditorTools } from "./src/editor-tools.js";
 import { registerEventBridge } from "./src/event-bridge.js";
 import { registerLifecycleTools } from "./src/lifecycle-tools.js";
 import { forgetPairing, lastPairing } from "./src/state.js";
@@ -40,6 +42,14 @@ export default async function (pi: ExtensionAPI) {
 	// `neovim-pi:ready` once subscribed so emitters that
 	// loaded earlier can retry their registration.
 	registerEventBridge(pi.events);
+
+	// -- Human-cursor push stream receiver --
+	//
+	// Register the `cursor.moved` notification handler once, at
+	// activation. The handler map is process-scoped and survives
+	// reattach, so a single install backs every pairing; nvim is
+	// told to start emitting in `attachToSocket`.
+	installCursorStream();
 
 	// -- Lifecycle: restore prior pairing if still alive --
 
@@ -79,4 +89,8 @@ export default async function (pi: ExtensionAPI) {
 	// -- Tools the agent calls to drive an attached nvim --
 
 	registerNvimTools(pi, () => getClient());
+
+	// -- Editor-control tools: edit, view and persist real files --
+
+	registerEditorTools(pi, () => getClient());
 }
