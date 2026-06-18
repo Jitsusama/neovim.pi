@@ -87,10 +87,15 @@ export async function detachFromNeovim(): Promise<void> {
 	// outlive the pairing. We reach here only on a clean detach
 	// (the disconnect handler nulls `client` first, so this
 	// function returns early in that path), so the socket is
-	// still live and the unwatch request completes promptly.
+	// still live and the reset request completes promptly.
 	clearCursor();
 	try {
-		await c.request("nvim_exec_lua", ['require("neovim-pi.cursor").unwatch()', []]);
+		// reset() drops the nvim-side ownership ledger, forgets pi's
+		// stage windows and stops the cursor stream. Without this the
+		// ledger and stage_win outlive the pairing, and because nvim
+		// reuses buffer numbers a reattach could green-light
+		// reload/delete --force on what is now the human's buffer.
+		await c.request("nvim_exec_lua", ['require("neovim-pi").reset()', []]);
 	} catch {
 		// nvim may already be tearing down; the stream is harmless
 		// if it lingers, and a later attach re-clears the augroup.
