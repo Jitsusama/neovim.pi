@@ -114,8 +114,26 @@ describe("neovim-pi.text", function()
     it("flashes a highlight over the replacement", function()
       local bufnr = owned_buffer({ "hello world" })
       text.set_range(bufnr, 1, 0, 1, 5, "HELLO")
-      local marks = vim.api.nvim_buf_get_extmarks(bufnr, mark.namespace(), 0, -1, {})
+      -- The flash lives in its own namespace (idempotent by
+      -- name), kept apart from the shared extmark namespace.
+      local flash_ns = vim.api.nvim_create_namespace("neovim-pi-flash")
+      local marks = vim.api.nvim_buf_get_extmarks(bufnr, flash_ns, 0, -1, {})
       assert.is_true(#marks >= 1)
+    end)
+
+    it("leaves shared-namespace extmarks untouched when the flash clears", function()
+      local bufnr = owned_buffer({ "hello world" })
+      -- An agent highlight placed through the extmark capability.
+      mark.set(bufnr, 0, 0, 0, 5, "Search")
+      -- An edit flashes and schedules its clear FLASH_MS later.
+      text.set_range(bufnr, 1, 6, 1, 11, "there")
+      -- Wait past the flash lifetime so its deferred clear runs.
+      vim.wait(500, function()
+        return false
+      end)
+
+      local survivors = vim.api.nvim_buf_get_extmarks(bufnr, mark.namespace(), 0, -1, {})
+      assert.are.equal(1, #survivors)
     end)
   end)
 end)

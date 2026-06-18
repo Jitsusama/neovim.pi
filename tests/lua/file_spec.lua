@@ -128,6 +128,19 @@ describe("neovim-pi.file", function()
       local result = file.save(bufnr)
       assert.is_false(result.ok)
     end)
+
+    it("returns a structured refusal when the write fails", function()
+      local path = temp_file({ "x" })
+      local opened = file.open(path)
+      -- Point the buffer at an unwritable path so :write fails.
+      vim.api.nvim_buf_set_name(opened.bufnr, "/no/such/dir/cannot_write.txt")
+
+      local ok, result = pcall(file.save, opened.bufnr)
+
+      assert.is_true(ok) -- save must not throw the raw nvim error
+      assert.is_false(result.ok)
+      assert.is_string(result.error)
+    end)
   end)
 
   describe("reload()", function()

@@ -9,7 +9,6 @@
 -- corrupts any line with multibyte text.
 
 local owned = require("neovim-pi.owned")
-local mark = require("neovim-pi.mark")
 
 local M = {}
 
@@ -18,6 +17,12 @@ local FLASH_MS = 400
 
 --- Highlight group the edit flash paints with.
 local FLASH_HL = "Visual"
+
+--- The flash lives in its own namespace, apart from the
+--- shared `nvim.extmark` namespace, so clearing a flash never
+--- wipes an agent highlight and overlapping flashes do not
+--- clip each other.
+local FLASH_NS = vim.api.nvim_create_namespace("neovim-pi-flash")
 
 --- Byte offset of a 0-indexed character column in a line.
 ---
@@ -77,16 +82,23 @@ local function break_undo(bufnr)
   end)
 end
 
---- Briefly highlight a range, then clear pi's marks.
+--- Briefly highlight a range, then clear just this flash.
 ---
 --- The flash shows the human what pi just changed. Rows and
 --- columns here are 0-indexed byte positions, matching the
---- extmark API.
+--- extmark API. Clearing deletes only this flash's own
+--- extmark by id, so a later flash's wipe never erases an
+--- earlier flash still lit or an agent highlight in the
+--- shared namespace.
 local function flash(bufnr, start_row, start_byte, end_row, end_byte)
-  mark.set(bufnr, start_row, start_byte, end_row, end_byte, FLASH_HL)
+  local id = vim.api.nvim_buf_set_extmark(bufnr, FLASH_NS, start_row, start_byte, {
+    end_row = end_row,
+    end_col = end_byte,
+    hl_group = FLASH_HL,
+  })
   vim.defer_fn(function()
     if vim.api.nvim_buf_is_valid(bufnr) then
-      mark.clear(bufnr)
+      pcall(vim.api.nvim_buf_del_extmark, bufnr, FLASH_NS, id)
     end
   end, FLASH_MS)
 end

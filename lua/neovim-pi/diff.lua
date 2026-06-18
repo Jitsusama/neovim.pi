@@ -90,10 +90,19 @@ function M.pending(bufnr)
     return { ok = false, error = "buffer has no file on disk to diff against" }
   end
 
+  -- Read the on-disk bytes first, before creating any buffer
+  -- or window, so a file that is not yet written (a named
+  -- buffer with nothing on disk) refuses cleanly rather than
+  -- throwing a raw readfile error and orphaning a scratch.
+  local read_ok, disk = pcall(vim.fn.readfile, name)
+  if not read_ok then
+    return { ok = false, error = "cannot read the file on disk: " .. tostring(disk) }
+  end
+
   -- The on-disk bytes go in a throwaway scratch on the left...
   local original_buf = vim.api.nvim_create_buf(false, true)
   vim.bo[original_buf].bufhidden = "wipe"
-  vim.api.nvim_buf_set_lines(original_buf, 0, -1, false, vim.fn.readfile(name))
+  vim.api.nvim_buf_set_lines(original_buf, 0, -1, false, disk)
   vim.bo[original_buf].filetype = vim.bo[bufnr].filetype
   local original_win = stage.ensure()
   vim.api.nvim_win_set_buf(original_win, original_buf)

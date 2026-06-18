@@ -84,9 +84,17 @@ function M.save(bufnr)
     return { ok = false, error = "pi did not open this buffer" }
   end
 
-  vim.api.nvim_buf_call(bufnr, function()
+  -- A write can fail on the host (read-only file, missing
+  -- directory, disk full, a failing format-on-save autocmd).
+  -- Catch it and refuse structurally, the way the rest of the
+  -- surface does, rather than letting the raw error surface to
+  -- the agent as a transport failure.
+  local ok, err = pcall(vim.api.nvim_buf_call, bufnr, function()
     vim.cmd("write")
   end)
+  if not ok then
+    return { ok = false, error = tostring(err) }
+  end
 
   return {
     ok = true,
@@ -120,9 +128,14 @@ function M.reload(bufnr, force)
     }
   end
 
-  vim.api.nvim_buf_call(bufnr, function()
+  -- As with save, a reload can fail on the host; refuse
+  -- structurally rather than throwing a raw error.
+  local ok, err = pcall(vim.api.nvim_buf_call, bufnr, function()
     vim.cmd("edit!")
   end)
+  if not ok then
+    return { ok = false, error = tostring(err) }
+  end
 
   return {
     ok = true,

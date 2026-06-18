@@ -121,5 +121,17 @@ describe("neovim-pi.diff", function()
 
       assert.is_false(result.ok)
     end)
+
+    it("refuses structurally when the file is not yet on disk", function()
+      local buf = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_name(buf, "/no/such/dir/not_yet_written.txt")
+      owned.claim(buf)
+
+      local ok, result = pcall(diff.pending, buf)
+
+      assert.is_true(ok) -- must not throw the raw readfile error
+      assert.is_false(result.ok)
+      assert.is_string(result.error)
+    end)
   end)
 end)
