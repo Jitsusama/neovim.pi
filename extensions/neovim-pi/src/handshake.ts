@@ -44,6 +44,8 @@ export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.text.getRange",
 	"nvim.text.setRange",
 	"nvim.window.layout",
+	"nvim.window.focus",
+	"nvim.window.close",
 	"nvim.buffer.list",
 ];
 

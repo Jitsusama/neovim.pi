@@ -35,6 +35,7 @@ interface OpenResult {
 	bufnr: number;
 	path: string;
 	lines: number;
+	win: number;
 }
 
 function registerFileTool(pi: ExtensionAPI, getClient: ClientResolver): void {
@@ -42,7 +43,7 @@ function registerFileTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 		name: "nvim_file",
 		label: "Open a file in nvim",
 		description:
-			"Open a real file from disk into pi's stage window (a window pi owns, never the window you are focused on). Returns the bufnr to use with nvim_text.",
+			"Open a real file from disk into a window pi owns (never the window you are focused on). `mode` controls placement: `current` reuses pi's primary stage window, `split`/`vsplit` open a new pi-owned window beside it. Optional `line`/`col` land the cursor. Returns the bufnr to use with nvim_text and the window it opened in.",
 		parameters: Type.Object({
 			action: Type.Union([Type.Literal("open")], {
 				description: "The file operation. Only `open` is supported today.",
@@ -50,16 +51,38 @@ function registerFileTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			path: Type.String({
 				description: "Path to the file. Relative paths resolve against the cwd.",
 			}),
+			mode: Type.Optional(
+				Type.Union([Type.Literal("current"), Type.Literal("split"), Type.Literal("vsplit")], {
+					description:
+						"Where to show the file. `current` (default) reuses pi's primary stage window; `split` opens a horizontal split beside it; `vsplit` a vertical one. All are focus-preserving.",
+				}),
+			),
+			line: Type.Optional(
+				Type.Number({ description: "1-indexed line to land the cursor on after opening." }),
+			),
+			col: Type.Optional(
+				Type.Number({
+					description:
+						"0-indexed byte column for the cursor; defaults to 0. Ignored without `line`.",
+				}),
+			),
 		}),
 		async execute(_id, params, _signal, _onUpdate, _ctx) {
 			const client = requireClient(getClient);
 			requireCapability("nvim.file.open");
-			const result = await execLua<OpenResult>(client, "file", "open", [params.path]);
+			const opts: Record<string, unknown> = { mode: params.mode ?? "current" };
+			if (params.line !== undefined) {
+				opts.line = params.line;
+			}
+			if (params.col !== undefined) {
+				opts.col = params.col;
+			}
+			const result = await execLua<OpenResult>(client, "file", "open", [params.path, opts]);
 			return {
 				content: [
 					{
 						type: "text",
-						text: `opened ${result.path} (bufnr ${result.bufnr}, ${result.lines} lines)`,
+						text: `opened ${result.path} (bufnr ${result.bufnr}, ${result.lines} lines) in window ${result.win}`,
 					},
 				],
 				details: result,
@@ -231,30 +254,83 @@ interface Layout {
 	tabs: { tabnr: number; windows: WindowEntry[] }[];
 }
 
+interface FocusResult {
+	ok: boolean;
+	win?: number;
+	error?: string;
+}
+
+interface CloseResult {
+	ok: boolean;
+	error?: string;
+}
+
 function registerWindowTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 	pi.registerTool({
 		name: "nvim_window",
-		label: "Inspect nvim windows",
+		label: "Inspect or manage nvim windows",
 		description:
-			"Inspect the editor's windows. `layout` reports every window across every tab, the focused window and pi's stage window, so the agent can see what is on screen.",
+			"Act on the editor's windows. `layout` reports every window across every tab, the focused window and pi's stage window. `focus` moves the human's focus to a window (the one verb that deliberately does so). `close` closes a window pi owns, and refuses any window pi did not create so the human's windows are never closed out from under them.",
 		parameters: Type.Object({
-			action: Type.Union([Type.Literal("layout")], {
-				description: "The window operation. Only `layout` is supported today.",
+			action: Type.Union([Type.Literal("layout"), Type.Literal("focus"), Type.Literal("close")], {
+				description:
+					"Report the layout (`layout`), move focus to a window (`focus`) or close a pi-owned window (`close`).",
 			}),
+			win: Type.Optional(
+				Type.Number({
+					description:
+						"Window handle for `focus` and `close`. Use a handle from `layout` or an open result.",
+				}),
+			),
 		}),
-		async execute(_id, _params, _signal, _onUpdate, _ctx) {
+		async execute(_id, params, _signal, _onUpdate, _ctx) {
 			const client = requireClient(getClient);
-			requireCapability("nvim.window.layout");
-			const layout = await execLua<Layout>(client, "window", "layout", []);
-			const winCount = layout.tabs.reduce((n, t) => n + t.windows.length, 0);
+
+			if (params.action === "layout") {
+				requireCapability("nvim.window.layout");
+				const layout = await execLua<Layout>(client, "window", "layout", []);
+				const winCount = layout.tabs.reduce((n, t) => n + t.windows.length, 0);
+				return {
+					content: [
+						{
+							type: "text",
+							text: `${winCount} windows across ${layout.tabs.length} tab(s); stage ${layout.stage_win ?? "none"}`,
+						},
+					],
+					details: layout,
+				};
+			}
+
+			if (params.win === undefined) {
+				throw new Error(`${params.action} requires \`win\``);
+			}
+
+			if (params.action === "focus") {
+				requireCapability("nvim.window.focus");
+				const result = await execLua<FocusResult>(client, "window", "focus", [params.win]);
+				if (!result.ok) {
+					return {
+						content: [{ type: "text", text: `refused: ${result.error ?? "unknown reason"}` }],
+						details: result,
+					};
+				}
+				return {
+					content: [{ type: "text", text: `focused window ${result.win}` }],
+					details: result,
+				};
+			}
+
+			requireCapability("nvim.window.close");
+			const result = await execLua<CloseResult>(client, "window", "close", [params.win]);
+			if (!result.ok) {
+				return {
+					content: [{ type: "text", text: `refused: ${result.error ?? "unknown reason"}` }],
+					details: result,
+				};
+			}
 			return {
-				content: [
-					{
-						type: "text",
-						text: `${winCount} windows across ${layout.tabs.length} tab(s); stage ${layout.stage_win ?? "none"}`,
-					},
-				],
-				details: layout,
+				content: [{ type: "text", text: `closed window ${params.win}` }],
+				details: result,
 			};
 		},
 	});

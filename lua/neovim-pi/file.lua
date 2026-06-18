@@ -11,6 +11,7 @@ local M = {}
 
 local stage = require("neovim-pi.stage")
 local owned = require("neovim-pi.owned")
+local cursor = require("neovim-pi.cursor")
 
 --- Open a file on the stage window.
 ---
@@ -20,8 +21,11 @@ local owned = require("neovim-pi.owned")
 --- path and the current line count so the agent can frame
 --- ranges without a second round trip.
 ---@param path string
----@return { bufnr: integer, path: string, lines: integer }
-function M.open(path)
+---@param opts { mode: ("current"|"split"|"vsplit")?, line: integer?, col: integer? }?
+---@return { bufnr: integer, path: string, lines: integer, win: integer }
+function M.open(path, opts)
+  opts = opts or {}
+  local mode = opts.mode or "current"
   local abspath = vim.fn.fnamemodify(path, ":p")
 
   -- pi never edits the human's dirty work. If a buffer for this
@@ -43,15 +47,20 @@ function M.open(path)
   vim.fn.bufload(bufnr)
   vim.bo[bufnr].buflisted = true
 
-  local win = stage.ensure()
+  local win = mode == "current" and stage.ensure() or stage.open(mode)
   vim.api.nvim_win_set_buf(win, bufnr)
 
   owned.claim(bufnr)
+
+  if opts.line then
+    cursor.set(win, opts.line, opts.col or 0)
+  end
 
   return {
     bufnr = bufnr,
     path = abspath,
     lines = vim.api.nvim_buf_line_count(bufnr),
+    win = win,
   }
 end
 

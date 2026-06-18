@@ -183,15 +183,21 @@ clear it.
 ### `nvim.file.open`
 
 ```
-nvim.file.open(path: string) → { bufnr: number, path: string, lines: number }
+nvim.file.open(path: string, opts?: { mode?: "current" | "split" | "vsplit", line?: number, col?: number }) →
+  { bufnr: number, path: string, lines: number, win: number }
 ```
 
-Open a real file from disk into pi's stage window: a
-window pi owns, created lazily to the side of wherever
-the human is, so the open never steals focus. The
-buffer is editable and is claimed in pi's ownership
-ledger. Returns the bufnr, the resolved absolute path
-and the line count.
+Open a real file from disk into a window pi owns,
+created lazily to the side of wherever the human is, so
+the open never steals focus. `mode` places the file:
+`current` (default) reuses pi's primary stage window,
+while `split` and `vsplit` open a new pi-owned window
+beside it. Optional `line` and `col` land the cursor
+(`line` is 1-indexed, `col` a 0-indexed byte offset,
+ignored without `line`). The buffer is editable and is
+claimed in pi's ownership ledger. Returns the bufnr, the
+resolved absolute path, the line count and the window it
+opened in.
 
 ### `nvim.file.save`
 
@@ -247,6 +253,29 @@ nvim.window.layout() → {
 Report the window and tab layout so the agent can see
 what is on screen: every window across every tab, the
 focused window and pi's stage window. Read-only.
+
+### `nvim.window.focus`
+
+```
+nvim.window.focus(win: number) → { ok: boolean, win?: number, error?: string }
+```
+
+Move the human's focus to a window. This is the one verb
+that deliberately moves focus, used when the agent is
+asked to draw attention to something it prepared.
+Refuses with `ok: false` when the window handle is no
+longer valid.
+
+### `nvim.window.close`
+
+```
+nvim.window.close(win: number) → { ok: boolean, error?: string }
+```
+
+Close a window pi owns. Refuses any window pi did not
+create, so the human's windows are never closed out from
+under them, and reports rather than throws when nvim
+declines to close the last window on screen.
 
 ### `nvim.buffer.list`
 

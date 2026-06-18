@@ -55,4 +55,39 @@ function M.layout()
   }
 end
 
+--- Close a window pi owns.
+---
+--- Refuses any window pi did not create, so the human's
+--- windows are never closed out from under them. nvim raises
+--- when asked to close the last window on screen; that error
+--- is reported rather than thrown.
+---@param win integer
+---@return { ok: boolean, error: string? }
+function M.close(win)
+  if not stage.owns(win) then
+    return { ok = false, error = "pi does not own this window" }
+  end
+  local ok, err = pcall(vim.api.nvim_win_close, win, false)
+  if not ok then
+    return { ok = false, error = tostring(err) }
+  end
+  return { ok = true }
+end
+
+--- Move the focus to a window.
+---
+--- This is the one verb that deliberately moves the human's
+--- focus, used when the agent is asked to draw attention to
+--- something it prepared. Unlike opening, which is always
+--- focus-preserving, focus is an explicit, named action.
+---@param win integer
+---@return { ok: boolean, win: integer?, error: string? }
+function M.focus(win)
+  if not vim.api.nvim_win_is_valid(win) then
+    return { ok = false, error = "no such window" }
+  end
+  vim.api.nvim_set_current_win(win)
+  return { ok = true, win = win }
+end
+
 return M
