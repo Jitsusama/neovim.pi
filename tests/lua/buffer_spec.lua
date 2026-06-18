@@ -56,24 +56,6 @@ describe("neovim-pi.buffer", function()
     end)
   end)
 
-  describe("close()", function()
-    it("returns false when no buffer exists for the URI", function()
-      assert.is_false(buffer.close("pi://nothing/here"))
-    end)
-
-    it("removes an existing pi:// buffer and returns true", function()
-      buffer.enable()
-      with_fake_rpc(function(_, _, cb)
-        cb(nil, { lines = { "ok" } })
-      end, function()
-        buffer.open("pi://test/closeme", false)
-        drain_scheduled()
-        assert.is_true(buffer.close("pi://test/closeme"))
-        assert.are.equal(-1, vim.fn.bufnr("pi://test/closeme"))
-      end)
-    end)
-  end)
-
   describe("mark_stale()", function()
     it("does nothing when the buffer is absent", function()
       assert.has_no.errors(function()
@@ -92,30 +74,6 @@ describe("neovim-pi.buffer", function()
         local bufnr = vim.fn.bufnr("pi://test/stale")
         assert.is_true(vim.b[bufnr]["neovim_pi_stale"])
       end)
-    end)
-  end)
-
-  describe("is_modified()", function()
-    it("returns false when no buffer is loaded for the path", function()
-      assert.is_false(buffer.is_modified("/no/such/file.txt"))
-    end)
-
-    it("returns true when a buffer for the path is dirty", function()
-      -- macOS tempname paths resolve through a /var -> /private/var
-      -- symlink, so we use the actual buffer name (post-resolution)
-      -- as the lookup key. The contract under test is:
-      -- given a path equal to some loaded buffer's name, return
-      -- true when that buffer is modified.
-      local tmp = vim.fn.tempname()
-      vim.fn.writefile({ "original" }, tmp)
-      vim.cmd("edit " .. tmp)
-      local bufnr = vim.api.nvim_get_current_buf()
-      local bufname = vim.api.nvim_buf_get_name(bufnr)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "dirty" })
-      vim.bo[bufnr].modified = true
-      assert.is_true(buffer.is_modified(bufname))
-      pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
-      pcall(os.remove, tmp)
     end)
   end)
 

@@ -106,14 +106,6 @@ nvim.buffer.open(uri: string, focus: boolean) → bufnr
 Open a `pi://` URI as a buffer. When `focus` is true,
 move the user's window to it. Returns the new bufnr.
 
-### `nvim.buffer.close`
-
-```
-nvim.buffer.close(uri: string) → boolean
-```
-
-Close a `pi://` buffer. Returns true if it was open.
-
 ### `nvim.buffer.markStale`
 
 ```
@@ -123,25 +115,6 @@ nvim.buffer.markStale(uri: string) → void
 Mark a buffer as stale (pi has disconnected). The
 plugin sets `b.neovim_pi_stale = true`; the user's
 statusline can pick it up.
-
-### `nvim.buffer.isModified`
-
-```
-nvim.buffer.isModified(path: string) → boolean
-```
-
-True when any buffer pointing at this path has
-unsaved changes. Used by the fix loop to detect
-conflicts before writing.
-
-### `nvim.buffer.reload`
-
-```
-nvim.buffer.reload(path: string) → void
-```
-
-Force-reload any buffer pointing at `path` (`edit!`).
-Used after the agent commits a fix.
 
 ### `nvim.window.cursor.set`
 

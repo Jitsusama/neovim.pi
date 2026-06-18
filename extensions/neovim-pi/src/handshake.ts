@@ -32,10 +32,7 @@ export const PI_CAPABILITIES: readonly string[] = [
 /** Capabilities the nvim peer is expected to expose (best-effort check). */
 export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.buffer.open",
-	"nvim.buffer.close",
 	"nvim.buffer.markStale",
-	"nvim.buffer.isModified",
-	"nvim.buffer.reload",
 	"nvim.window.cursor.set",
 	"nvim.extmark.set",
 	"nvim.extmark.clear",

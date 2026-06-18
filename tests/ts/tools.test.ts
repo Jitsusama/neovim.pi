@@ -51,27 +51,14 @@ describe("nvim tools", () => {
 	it("registers exactly the documented set of tools", () => {
 		const tools = setup(() => null);
 		const names = [...tools.keys()].sort();
-		expect(names).toEqual([
-			"nvim_buffer_close",
-			"nvim_buffer_is_modified",
-			"nvim_buffer_open",
-			"nvim_buffer_reload",
-		]);
+		expect(names).toEqual(["nvim_buffer_open"]);
 	});
 
 	it("every tool refuses to run without a paired peer", async () => {
 		const tools = setup(() => null);
-		for (const [name, tool] of tools) {
+		for (const [, tool] of tools) {
 			await expect(
-				tool.execute(
-					"id",
-					name === "nvim_buffer_is_modified" || name === "nvim_buffer_reload"
-						? { path: "/x" }
-						: { uri: "pi://x" },
-					noopSignal,
-					() => {},
-					noopCtx,
-				),
+				tool.execute("id", { uri: "pi://x" }, noopSignal, () => {}, noopCtx),
 			).rejects.toThrow(/no nvim paired/i);
 		}
 	});
@@ -121,49 +108,4 @@ describe("nvim tools", () => {
 		});
 	});
 
-	describe("nvim_buffer_close", () => {
-		it("forwards the URI to the lua adapter", async () => {
-			const { client, requests } = fakeClient();
-			const tools = setup(() => client);
-			await tools
-				.get("nvim_buffer_close")
-				?.execute("id", { uri: "pi://test/foo" }, noopSignal, () => {}, noopCtx);
-			const [, callArgs] = requests[0]?.args as [string, unknown[]];
-			expect(callArgs).toEqual(["pi://test/foo"]);
-		});
-	});
-
-	describe("nvim_buffer_is_modified", () => {
-		it("surfaces the dirty flag in the details payload", async () => {
-			const { client } = fakeClient(true);
-			const tools = setup(() => client);
-			const result = await tools
-				.get("nvim_buffer_is_modified")
-				?.execute("id", { path: "/work/foo.ts" }, noopSignal, () => {}, noopCtx);
-			expect(result?.details).toMatchObject({ modified: true });
-			expect(result?.content[0]?.text).toBe("modified");
-		});
-
-		it("renders 'clean' when nvim reports the buffer is not dirty", async () => {
-			const { client } = fakeClient(false);
-			const tools = setup(() => client);
-			const result = await tools
-				.get("nvim_buffer_is_modified")
-				?.execute("id", { path: "/work/foo.ts" }, noopSignal, () => {}, noopCtx);
-			expect(result?.details).toMatchObject({ modified: false });
-			expect(result?.content[0]?.text).toBe("clean");
-		});
-	});
-
-	describe("nvim_buffer_reload", () => {
-		it("forwards the path to the lua adapter", async () => {
-			const { client, requests } = fakeClient();
-			const tools = setup(() => client);
-			await tools
-				.get("nvim_buffer_reload")
-				?.execute("id", { path: "/work/foo.ts" }, noopSignal, () => {}, noopCtx);
-			const [, callArgs] = requests[0]?.args as [string, unknown[]];
-			expect(callArgs).toEqual(["/work/foo.ts"]);
-		});
-	});
 });

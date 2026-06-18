@@ -17,10 +17,7 @@
         "capabilities": {
           "contains": [
             "nvim.buffer.open",
-            "nvim.buffer.close",
-            "nvim.buffer.markStale",
-            "nvim.buffer.isModified",
-            "nvim.buffer.reload"
+            "nvim.buffer.markStale"
           ]
         }
       }

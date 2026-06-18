@@ -12,10 +12,7 @@ local PROTOCOL_VERSION = "0.1.0"
 -- Capabilities this plugin advertises.
 local NVIM_CAPABILITIES = {
   "nvim.buffer.open",
-  "nvim.buffer.close",
   "nvim.buffer.markStale",
-  "nvim.buffer.isModified",
-  "nvim.buffer.reload",
   "nvim.window.cursor.set",
   "nvim.extmark.set",
   "nvim.extmark.clear",
