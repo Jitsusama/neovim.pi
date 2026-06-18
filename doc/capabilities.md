@@ -290,6 +290,47 @@ List every buffer, including buffers loaded but not
 shown in any window. `owned` marks the buffers pi
 opened. Read-only.
 
+### `nvim.buffer.info`
+
+```
+nvim.buffer.info(bufnr: number) →
+  { ok: true, bufnr, name, listed, loaded, modified, owned, lines, changedtick }
+  | { ok: false, error }
+```
+
+The single-buffer companion to `nvim.buffer.list`: the
+same flags plus the line count and changedtick, so the
+agent can frame ranges and arm the edit path's conflict
+check in one round trip. The line count is meaningful
+only once the buffer is loaded. Read-only.
+
+### `nvim.buffer.switch`
+
+```
+nvim.buffer.switch(bufnr: number) → { ok: boolean, win?: number, bufnr?: number, error?: string }
+```
+
+Show an existing buffer on pi's stage window. The swap
+lands in a window pi owns, so it never moves the human's
+focus, and it is non-destructive: any valid buffer is
+fair game, not just buffers pi owns. Editing the buffer
+afterwards still gates on the ownership ledger.
+
+### `nvim.buffer.delete`
+
+```
+nvim.buffer.delete(bufnr: number, force?: boolean) → { ok: boolean, modified?: boolean, error?: string }
+```
+
+Remove a buffer pi opened (via `nvim_buf_delete`). Named
+`delete` to stay distinct from `nvim.window.close`, which
+only closes a window. Refuses a buffer pi does not own,
+so the human's buffers are never removed. A buffer with
+unsaved changes is the E89 condition: rather than let
+that error surface raw, `delete` reports `modified: true`
+as a confirm trigger, and `force` discards the changes
+and goes through.
+
 ### `nvim.status.publish`
 
 ```

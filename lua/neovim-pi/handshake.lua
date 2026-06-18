@@ -27,6 +27,9 @@ local NVIM_CAPABILITIES = {
   "nvim.window.focus",
   "nvim.window.close",
   "nvim.buffer.list",
+  "nvim.buffer.info",
+  "nvim.buffer.switch",
+  "nvim.buffer.delete",
   "nvim.status.publish",
 }
 

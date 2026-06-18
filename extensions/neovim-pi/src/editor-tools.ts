@@ -188,18 +188,56 @@ interface BufferEntry {
 	owned: boolean;
 }
 
+interface SwitchResult {
+	ok: boolean;
+	win?: number;
+	bufnr?: number;
+	error?: string;
+}
+
+interface DeleteResult {
+	ok: boolean;
+	modified?: boolean;
+	error?: string;
+}
+
+interface InfoResult extends BufferEntry {
+	ok: boolean;
+	lines: number;
+	changedtick: number;
+	error?: string;
+}
+
 function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 	pi.registerTool({
 		name: "nvim_buffer",
 		label: "Inspect or manage nvim buffers",
 		description:
-			"Act on the editor's buffers. `list` reports every buffer and which ones pi owns. `save` writes a buffer pi opened back to its file on demand (pi warns rather than auto-saves, so this is how an edit reaches disk).",
+			"Act on the editor's real-file buffers. `list` reports every buffer and which ones pi owns; `info` reports one buffer in detail. `save` writes a buffer pi opened back to its file (pi warns rather than auto-saves, so this is how an edit reaches disk). `switch` shows an existing buffer on pi's stage window. `delete` removes a buffer pi opened, refusing one it does not own and refusing a buffer with unsaved changes unless `force` discards them.",
 		parameters: Type.Object({
-			action: Type.Union([Type.Literal("list"), Type.Literal("save")], {
-				description: "List all buffers (`list`) or save one pi owns (`save`).",
-			}),
+			action: Type.Union(
+				[
+					Type.Literal("list"),
+					Type.Literal("info"),
+					Type.Literal("save"),
+					Type.Literal("switch"),
+					Type.Literal("delete"),
+				],
+				{
+					description:
+						"List every buffer (`list`), report one in detail (`info`), save one pi owns (`save`), show one on pi's stage (`switch`) or remove one pi owns (`delete`).",
+				},
+			),
 			bufnr: Type.Optional(
-				Type.Number({ description: "Buffer handle for `save`. Returned by nvim_file." }),
+				Type.Number({
+					description:
+						"Buffer handle for `info`, `save`, `switch` and `delete`. Returned by nvim_file or nvim_buffer list.",
+				}),
+			),
+			force: Type.Optional(
+				Type.Boolean({
+					description: "For `delete`: discard unsaved changes instead of refusing.",
+				}),
 			),
 		}),
 		async execute(_id, params, _signal, _onUpdate, _ctx) {
@@ -215,24 +253,86 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 				};
 			}
 
-			requireCapability("nvim.file.save");
 			if (params.bufnr === undefined) {
-				throw new Error("save requires `bufnr`");
+				throw new Error(`${params.action} requires \`bufnr\``);
 			}
-			const result = await execLua<SaveResult>(client, "file", "save", [params.bufnr]);
-			if (!result.ok) {
+
+			if (params.action === "info") {
+				requireCapability("nvim.buffer.info");
+				const result = await execLua<InfoResult>(client, "buffers", "info", [params.bufnr]);
+				if (!result.ok) {
+					return {
+						content: [{ type: "text", text: `refused: ${result.error ?? "unknown reason"}` }],
+						details: result,
+					};
+				}
+				const flags = [
+					result.modified ? "modified" : "clean",
+					result.owned ? "pi-owned" : "not pi-owned",
+					result.loaded ? "loaded" : "unloaded",
+				].join(", ");
 				return {
-					content: [{ type: "text", text: `refused: ${result.error ?? "unknown reason"}` }],
+					content: [
+						{
+							type: "text",
+							text: `bufnr ${result.bufnr}: ${result.name || "[no name]"} (${result.lines} lines, ${flags}, changedtick ${result.changedtick})`,
+						},
+					],
 					details: result,
 				};
 			}
+
+			if (params.action === "save") {
+				requireCapability("nvim.file.save");
+				const result = await execLua<SaveResult>(client, "file", "save", [params.bufnr]);
+				if (!result.ok) {
+					return {
+						content: [{ type: "text", text: `refused: ${result.error ?? "unknown reason"}` }],
+						details: result,
+					};
+				}
+				return {
+					content: [
+						{
+							type: "text",
+							text: `saved bufnr ${params.bufnr}${result.modified ? " (still dirty)" : ""}`,
+						},
+					],
+					details: result,
+				};
+			}
+
+			if (params.action === "switch") {
+				requireCapability("nvim.buffer.switch");
+				const result = await execLua<SwitchResult>(client, "buffers", "switch", [params.bufnr]);
+				if (!result.ok) {
+					return {
+						content: [{ type: "text", text: `refused: ${result.error ?? "unknown reason"}` }],
+						details: result,
+					};
+				}
+				return {
+					content: [
+						{ type: "text", text: `showing bufnr ${result.bufnr} in window ${result.win}` },
+					],
+					details: result,
+				};
+			}
+
+			requireCapability("nvim.buffer.delete");
+			const deleteArgs: unknown[] = [params.bufnr];
+			if (params.force !== undefined) {
+				deleteArgs.push(params.force);
+			}
+			const result = await execLua<DeleteResult>(client, "buffers", "delete", deleteArgs);
+			if (!result.ok) {
+				const reason = result.modified
+					? `refused: buffer ${params.bufnr} has unsaved changes; pass force to discard them`
+					: `refused: ${result.error ?? "unknown reason"}`;
+				return { content: [{ type: "text", text: reason }], details: result };
+			}
 			return {
-				content: [
-					{
-						type: "text",
-						text: `saved bufnr ${params.bufnr}${result.modified ? " (still dirty)" : ""}`,
-					},
-				],
+				content: [{ type: "text", text: `deleted bufnr ${params.bufnr}` }],
 				details: result,
 			};
 		},

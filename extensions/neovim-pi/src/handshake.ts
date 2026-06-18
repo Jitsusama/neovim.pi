@@ -47,6 +47,9 @@ export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.window.focus",
 	"nvim.window.close",
 	"nvim.buffer.list",
+	"nvim.buffer.info",
+	"nvim.buffer.switch",
+	"nvim.buffer.delete",
 ];
 
 export interface PeerInfo {
