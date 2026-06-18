@@ -53,6 +53,7 @@ describe("registerHandlers", () => {
 		// Reset between tests so suites don't leak state.
 		removeMethod("custom.echo");
 		removeMethod("custom.boom");
+		removeMethod("buffer.uri.resolve");
 	});
 
 	it("seeds a default `buffer.uri.resolve` handler", async () => {
@@ -61,6 +62,18 @@ describe("registerHandlers", () => {
 		expect(resp.isError).toBeFalsy();
 		expect((resp.value as { lines: string[] }).lines[0]).toMatch(/no scheme handler/);
 		expect((resp.value as { lines: string[] }).lines.join("\n")).toContain("pi://local/x");
+	});
+
+	it("preserves an extension-registered scheme handler across a later attach", async () => {
+		// A second attach calls registerHandlers again on a fresh
+		// client. Re-seeding the built-in default must not clobber a
+		// scheme handler an extension already claimed via addMethod.
+		fakeClient();
+		addMethod("buffer.uri.resolve", () => ({ lines: ["owned by extension"] }));
+		const { emit } = fakeClient();
+		const resp = await emit("pi.dispatch", ["buffer.uri.resolve", "pi://pr/x"]);
+		expect(resp.isError).toBeFalsy();
+		expect((resp.value as { lines: string[] }).lines).toEqual(["owned by extension"]);
 	});
 
 	it("flags an unknown top-level method as an error", async () => {
