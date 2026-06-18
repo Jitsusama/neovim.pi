@@ -116,6 +116,18 @@ Mark a buffer as stale (pi has disconnected). The
 plugin sets `b.neovim_pi_stale = true`; the user's
 statusline can pick it up.
 
+### `nvim.cursor.get`
+
+```
+nvim.cursor.get(win: number) → { win, bufnr, name, line, col, mode }
+```
+
+Report the live cursor position in a window (`win` is a
+handle, or 0 for the current window). The read-side mirror
+of `nvim.window.cursor.set`: it shares the 1-indexed line
+and 0-indexed column convention, so a get then set
+round-trips without translation.
+
 ### `nvim.window.cursor.set`
 
 ```
@@ -148,6 +160,22 @@ autocmds, so they never echo back. pi mutations that run
 ex-commands can wrap their work in the lua `suppress`
 helper to drop any move they do provoke. pi starts the
 stream on attach and tears it down on detach.
+
+### `nvim.cursor.selection.get`
+
+```
+nvim.cursor.selection.get(win: number) → {
+  win, bufnr, kind, start: {line, col}, finish: {line, col}, text, empty
+}
+```
+
+Report the human's visual selection in a window: its kind
+(`v`, `V` or blockwise), the start and finish (1-indexed
+line, 0-indexed column, inclusive end) and the selected
+text. It reads the live anchor and cursor while visual mode
+is active, and the `'<`/`'>` marks once it ends, since
+those marks lag a selection behind until visual mode
+closes. `empty` is true when nothing has been selected.
 
 ### `nvim.extmark.set`
 

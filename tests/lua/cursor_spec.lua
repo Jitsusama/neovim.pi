@@ -13,6 +13,12 @@ end
 describe("neovim-pi.cursor", function()
   after_each(function()
     cursor.unwatch()
+    -- A test that enters visual mode and reads the live
+    -- selection leaves visual mode active; reset to normal so
+    -- it does not bleed into the next test's mode() check.
+    if vim.fn.mode() ~= "n" then
+      vim.cmd("normal! \27")
+    end
   end)
 
   describe("set()", function()
@@ -130,6 +136,47 @@ describe("neovim-pi.cursor", function()
       end)
 
       assert.are.equal(1, #seen)
+    end)
+  end)
+
+  describe("get_selection()", function()
+    it("reads the last completed charwise selection from the marks", function()
+      local win = window_with_lines({ "hello world", "second line" })
+      -- select "hel" charwise, then leave visual mode so the
+      -- '<' and '>' marks are populated.
+      vim.cmd("normal! ggvll\27")
+      local sel = cursor.get_selection(win)
+
+      assert.is_false(sel.empty)
+      assert.are.same({ line = 1, col = 0 }, sel.start)
+      assert.are.same({ line = 1, col = 2 }, sel.finish)
+      assert.are.equal("hel", sel.text)
+    end)
+
+    it("reads the live selection while still in visual mode", function()
+      local win = window_with_lines({ "hello world" })
+      vim.cmd("normal! ggvll")
+      local sel = cursor.get_selection(win)
+
+      assert.is_false(sel.empty)
+      assert.are.equal("hel", sel.text)
+    end)
+
+    it("returns the full lines for a linewise selection", function()
+      local win = window_with_lines({ "first line", "second line", "third" })
+      vim.cmd("normal! ggVj\27")
+      local sel = cursor.get_selection(win)
+
+      assert.are.equal("V", sel.kind)
+      assert.are.equal("first line\nsecond line", sel.text)
+    end)
+
+    it("flags empty when nothing has been selected", function()
+      local win = window_with_lines({ "a", "b" })
+      local sel = cursor.get_selection(win)
+
+      assert.is_true(sel.empty)
+      assert.are.equal("", sel.text)
     end)
   end)
 end)

@@ -23,12 +23,13 @@ import { peerHas } from "./handshake.js";
 
 type ClientResolver = () => NeovimClient | null;
 
-/** Register the editor-control tools (`nvim_file`, `nvim_text`, `nvim_buffer`). */
+/** Register the editor-control tools (`nvim_file`, `nvim_text`, `nvim_buffer`, `nvim_window`, `nvim_cursor`). */
 export function registerEditorTools(pi: ExtensionAPI, getClient: ClientResolver): void {
 	registerFileTool(pi, getClient);
 	registerTextTool(pi, getClient);
 	registerBufferTool(pi, getClient);
 	registerWindowTool(pi, getClient);
+	registerCursorTool(pi, getClient);
 }
 
 interface OpenResult {
@@ -464,6 +465,106 @@ function registerWindowTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			return {
 				content: [{ type: "text", text: `closed window ${params.win}` }],
 				details: result,
+			};
+		},
+	});
+}
+
+interface CursorInfo {
+	win: number;
+	bufnr: number;
+	name: string;
+	line: number;
+	col: number;
+	mode: string;
+}
+
+interface Selection {
+	win: number;
+	bufnr: number;
+	kind: string;
+	start: { line: number; col: number };
+	finish: { line: number; col: number };
+	text: string;
+	empty: boolean;
+}
+
+function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
+	pi.registerTool({
+		name: "nvim_cursor",
+		label: "Read or move the cursor and selection in nvim",
+		description:
+			"Read or move the cursor, and read the human's visual selection. `get` reports where the cursor is, defaulting to the window you are focused on. `set` moves the cursor in a named window: pass `win` deliberately, since pi otherwise never moves the human's cursor. `get_selection` returns the human's visual selection, the live one while they are selecting and the last completed one otherwise, so you can act on what they highlighted.",
+		parameters: Type.Object({
+			action: Type.Union(
+				[Type.Literal("get"), Type.Literal("set"), Type.Literal("get_selection")],
+				{
+					description:
+						"Read the cursor (`get`), move it in a window (`set`) or read the visual selection (`get_selection`).",
+				},
+			),
+			win: Type.Optional(
+				Type.Number({
+					description:
+						"Window handle. `get` and `get_selection` default to the focused window; `set` requires it.",
+				}),
+			),
+			line: Type.Optional(Type.Number({ description: "1-indexed line for `set`." })),
+			col: Type.Optional(
+				Type.Number({ description: "0-indexed byte column for `set`; defaults to 0." }),
+			),
+		}),
+		async execute(_id, params, _signal, _onUpdate, _ctx) {
+			const client = requireClient(getClient);
+
+			if (params.action === "get") {
+				requireCapability("nvim.cursor.get");
+				const info = await execLua<CursorInfo>(client, "cursor", "get", [params.win ?? 0]);
+				return {
+					content: [
+						{
+							type: "text",
+							text: `cursor at ${info.line}:${info.col} in bufnr ${info.bufnr} (window ${info.win}, mode ${info.mode})`,
+						},
+					],
+					details: info,
+				};
+			}
+
+			if (params.action === "get_selection") {
+				requireCapability("nvim.cursor.selection.get");
+				const sel = await execLua<Selection>(client, "cursor", "get_selection", [params.win ?? 0]);
+				if (sel.empty) {
+					return { content: [{ type: "text", text: "no visual selection" }], details: sel };
+				}
+				const span = `${sel.start.line}:${sel.start.col} to ${sel.finish.line}:${sel.finish.col}`;
+				return {
+					content: [
+						{
+							type: "text",
+							text: `${sel.kind} selection ${span} in bufnr ${sel.bufnr}\n${sel.text}`,
+						},
+					],
+					details: sel,
+				};
+			}
+
+			if (params.win === undefined) {
+				throw new Error(
+					"set requires `win`: name the window to move, since pi does not move the human's cursor by default.",
+				);
+			}
+			if (params.line === undefined) {
+				throw new Error("set requires `line`");
+			}
+			requireCapability("nvim.window.cursor.set");
+			const col = params.col ?? 0;
+			await execLua(client, "cursor", "set", [params.win, params.line, col]);
+			return {
+				content: [
+					{ type: "text", text: `moved cursor to ${params.line}:${col} in window ${params.win}` },
+				],
+				details: { win: params.win, line: params.line, col },
 			};
 		},
 	});

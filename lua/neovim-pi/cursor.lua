@@ -69,6 +69,94 @@ function M.get(win)
   }
 end
 
+--- Report the human's visual selection in a window.
+---
+--- Neovim exposes a selection two ways, and which one is
+--- live depends on whether the human is still selecting.
+--- While visual mode is active the `'<`/`'>` marks still
+--- hold the *previous* selection, so the live ends come from
+--- `getpos("v")` (the anchor) and `getpos(".")` (the cursor);
+--- once visual mode ends those marks catch up and become the
+--- source of truth. We normalise both to a 1-indexed line, a
+--- 0-indexed column and an inclusive end, then order the ends
+--- so a backwards selection still reads start-to-finish.
+---@class neovim_pi.Selection
+---@field win integer
+---@field bufnr integer
+---@field kind string visual kind: "v", "V" or blockwise
+---@field start { line: integer, col: integer } 1-indexed line, 0-indexed col
+---@field finish { line: integer, col: integer } inclusive end
+---@field text string the selected text, lines joined with \n
+---@field empty boolean true when nothing has been selected
+---@param win integer? window handle, or 0/nil for current
+---@return neovim_pi.Selection
+function M.get_selection(win)
+  local window = (win == nil or win == 0) and vim.api.nvim_get_current_win() or win
+  local bufnr = vim.api.nvim_win_get_buf(window)
+  local m = vim.api.nvim_get_mode().mode
+  local in_visual = m:sub(1, 1):match("[vV\22]") ~= nil
+
+  local sline, scol, eline, ecol, kind
+  if in_visual then
+    local anchor = vim.fn.getpos("v")
+    local point = vim.fn.getpos(".")
+    sline, scol = anchor[2], anchor[3] - 1
+    eline, ecol = point[2], point[3] - 1
+    kind = m:sub(1, 1)
+  else
+    local s = vim.api.nvim_buf_get_mark(bufnr, "<")
+    local e = vim.api.nvim_buf_get_mark(bufnr, ">")
+    sline, scol = s[1], s[2]
+    eline, ecol = e[1], e[2]
+    kind = vim.fn.visualmode()
+    if kind == "" then
+      kind = "v"
+    end
+  end
+
+  if sline == 0 or eline == 0 then
+    return {
+      win = window,
+      bufnr = bufnr,
+      kind = kind,
+      start = { line = 0, col = 0 },
+      finish = { line = 0, col = 0 },
+      text = "",
+      empty = true,
+    }
+  end
+
+  if sline > eline or (sline == eline and scol > ecol) then
+    sline, scol, eline, ecol = eline, ecol, sline, scol
+  end
+
+  local text
+  if kind == "V" then
+    local lines = vim.api.nvim_buf_get_lines(bufnr, sline - 1, eline, false)
+    text = table.concat(lines, "\n")
+  else
+    -- Charwise (blockwise is approximated as the spanning
+    -- charwise range). The end column is inclusive, so add one
+    -- for the exclusive end nvim_buf_get_text wants, clamped to
+    -- the line so an end-of-line mark never reads past it.
+    local last = vim.api.nvim_buf_get_lines(bufnr, eline - 1, eline, false)[1] or ""
+    local end_exclusive = math.min(ecol + 1, #last)
+    local ok, chunk =
+      pcall(vim.api.nvim_buf_get_text, bufnr, sline - 1, scol, eline - 1, end_exclusive, {})
+    text = ok and table.concat(chunk, "\n") or ""
+  end
+
+  return {
+    win = window,
+    bufnr = bufnr,
+    kind = kind,
+    start = { line = sline, col = scol },
+    finish = { line = eline, col = ecol },
+    text = text,
+    empty = false,
+  }
+end
+
 --- The default sink: push the snapshot to pi over RPC.
 local function default_sink(payload)
   require("neovim-pi.rpc").notify("cursor.moved", { payload })
