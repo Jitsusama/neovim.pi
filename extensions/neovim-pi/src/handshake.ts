@@ -37,6 +37,8 @@ export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.cursor.get",
 	"nvim.cursor.stream",
 	"nvim.cursor.selection.get",
+	"nvim.diff.files",
+	"nvim.diff.off",
 	"nvim.extmark.set",
 	"nvim.extmark.clear",
 	"nvim.file.open",

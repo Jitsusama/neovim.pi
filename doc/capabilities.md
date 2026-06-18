@@ -368,6 +368,33 @@ that error surface raw, `delete` reports `modified: true`
 as a confirm trigger, and `force` discards the changes
 and goes through.
 
+### `nvim.diff.files`
+
+```
+nvim.diff.files(left: string, right: string) → {
+  left: { win, bufnr }, right: { win, bufnr }
+}
+```
+
+Show two real files side by side in diff mode. The left
+file lands on pi's primary stage and the right splits
+beside it, so the comparison appears in pi-owned windows
+without moving the human's focus. `diffthis` runs inside
+each window so it acts on the right one. The buffers are
+plain file buffers, not claimed in the ownership ledger,
+since this is a comparison rather than an edit session.
+
+### `nvim.diff.off`
+
+```
+nvim.diff.off(win: number) → { ok: boolean, error?: string }
+```
+
+Turn off diff mode in a window pi owns. Refuses any window
+pi did not create, mirroring `nvim.window.close`. Pairs
+with `close` for full teardown: `off` ends the diff, close
+removes the window.
+
 ### `nvim.status.publish`
 
 ```

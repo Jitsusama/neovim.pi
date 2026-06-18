@@ -17,6 +17,8 @@ local NVIM_CAPABILITIES = {
   "nvim.cursor.get",
   "nvim.cursor.stream",
   "nvim.cursor.selection.get",
+  "nvim.diff.files",
+  "nvim.diff.off",
   "nvim.extmark.set",
   "nvim.extmark.clear",
   "nvim.file.open",

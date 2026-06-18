@@ -34,6 +34,7 @@ describe("editor-control tools", () => {
 		expect([...tools.keys()].sort()).toEqual([
 			"nvim_buffer",
 			"nvim_cursor",
+			"nvim_diff",
 			"nvim_file",
 			"nvim_text",
 			"nvim_window",

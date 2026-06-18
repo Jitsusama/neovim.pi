@@ -24,13 +24,14 @@ import { peerHas } from "./handshake.js";
 
 type ClientResolver = () => NeovimClient | null;
 
-/** Register the editor-control tools (`nvim_file`, `nvim_text`, `nvim_buffer`, `nvim_window`, `nvim_cursor`). */
+/** Register the editor-control tools (`nvim_file`, `nvim_text`, `nvim_buffer`, `nvim_window`, `nvim_cursor`, `nvim_diff`). */
 export function registerEditorTools(pi: ExtensionAPI, getClient: ClientResolver): void {
 	registerFileTool(pi, getClient);
 	registerTextTool(pi, getClient);
 	registerBufferTool(pi, getClient);
 	registerWindowTool(pi, getClient);
 	registerCursorTool(pi, getClient);
+	registerDiffTool(pi, getClient);
 }
 
 interface OpenResult {
@@ -592,6 +593,77 @@ function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 					{ type: "text", text: `moved cursor to ${params.line}:${col} in window ${params.win}` },
 				],
 				details: { win: params.win, line: params.line, col },
+			};
+		},
+	});
+}
+
+interface DiffSide {
+	win: number;
+	bufnr: number;
+}
+
+interface DiffFilesResult {
+	left: DiffSide;
+	right: DiffSide;
+}
+
+interface DiffOffResult {
+	ok: boolean;
+	error?: string;
+}
+
+function registerDiffTool(pi: ExtensionAPI, getClient: ClientResolver): void {
+	pi.registerTool({
+		name: "nvim_diff",
+		label: "Show a diff in nvim",
+		description:
+			"Show a side-by-side diff in windows pi owns, never the window you are focused on. `files` diffs two real files against each other. `off` ends the diff in a pi-owned window; pair it with `nvim_window close` to remove the window afterwards. This is a view and changes neither file.",
+		parameters: Type.Object({
+			action: Type.Union([Type.Literal("files"), Type.Literal("off")], {
+				description: "Diff two files (`files`) or end a diff in a window (`off`).",
+			}),
+			left: Type.Optional(Type.String({ description: "Path to the left file for `files`." })),
+			right: Type.Optional(Type.String({ description: "Path to the right file for `files`." })),
+			win: Type.Optional(Type.Number({ description: "Window handle for `off`." })),
+		}),
+		async execute(_id, params, _signal, _onUpdate, _ctx) {
+			const client = requireClient(getClient);
+
+			if (params.action === "files") {
+				requireCapability("nvim.diff.files");
+				if (params.left === undefined || params.right === undefined) {
+					throw new Error("files requires `left` and `right` paths");
+				}
+				const result = await execLua<DiffFilesResult>(client, "diff", "files", [
+					params.left,
+					params.right,
+				]);
+				return {
+					content: [
+						{
+							type: "text",
+							text: `diffing ${params.left} (win ${result.left.win}) against ${params.right} (win ${result.right.win})`,
+						},
+					],
+					details: result,
+				};
+			}
+
+			requireCapability("nvim.diff.off");
+			if (params.win === undefined) {
+				throw new Error("off requires `win`");
+			}
+			const result = await execLua<DiffOffResult>(client, "diff", "off", [params.win]);
+			if (!result.ok) {
+				return {
+					content: [{ type: "text", text: `refused: ${result.error ?? "unknown reason"}` }],
+					details: result,
+				};
+			}
+			return {
+				content: [{ type: "text", text: `diff off in window ${params.win}` }],
+				details: result,
 			};
 		},
 	});
