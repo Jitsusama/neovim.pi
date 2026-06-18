@@ -7,6 +7,7 @@ import {
 	installCursorStream,
 	lastCursor,
 	recordCursor,
+	turnState,
 } from "../../extensions/neovim-pi/src/cursor.js";
 import {
 	registerHandlers,
@@ -58,5 +59,44 @@ describe("cursor cache", () => {
 		const { emitNotification } = fakeClient();
 		emitNotification("pi.dispatch", ["cursor.moved", { ...sample, line: 9 }]);
 		expect(lastCursor()?.line).toBe(9);
+	});
+});
+
+describe("turnState", () => {
+	beforeEach(() => clearCursor());
+
+	it("reports no activity when nothing has been pushed", () => {
+		const state = turnState();
+		expect(state.humanActive).toBe(false);
+		expect(state.typing).toBe(false);
+		expect(state.msSinceMove).toBeNull();
+		expect(state.mode).toBeNull();
+	});
+
+	it("flags the human active and typing on a recent insert-mode push", () => {
+		recordCursor({ ...sample, mode: "i" });
+		const at = lastCursor()?.receivedAt ?? 0;
+		const state = turnState(1500, at + 100);
+		expect(state.humanActive).toBe(true);
+		expect(state.typing).toBe(true);
+		expect(state.mode).toBe("i");
+		expect(state.bufnr).toBe(sample.bufnr);
+	});
+
+	it("flags active but not typing on a recent normal-mode push", () => {
+		recordCursor({ ...sample, mode: "n" });
+		const at = lastCursor()?.receivedAt ?? 0;
+		const state = turnState(1500, at + 100);
+		expect(state.humanActive).toBe(true);
+		expect(state.typing).toBe(false);
+	});
+
+	it("goes quiet once the push falls outside the recency window", () => {
+		recordCursor({ ...sample, mode: "i" });
+		const at = lastCursor()?.receivedAt ?? 0;
+		const state = turnState(1500, at + 5000);
+		expect(state.humanActive).toBe(false);
+		expect(state.typing).toBe(false);
+		expect(state.msSinceMove).toBe(5000);
 	});
 });

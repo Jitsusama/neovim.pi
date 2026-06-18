@@ -19,6 +19,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { NeovimClient } from "neovim";
 import { Type } from "typebox";
+import { turnState } from "./cursor.js";
 import { peerHas } from "./handshake.js";
 
 type ClientResolver = () => NeovimClient | null;
@@ -494,13 +495,18 @@ function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 		name: "nvim_cursor",
 		label: "Read or move the cursor and selection in nvim",
 		description:
-			"Read or move the cursor, and read the human's visual selection. `get` reports where the cursor is, defaulting to the window you are focused on. `set` moves the cursor in a named window: pass `win` deliberately, since pi otherwise never moves the human's cursor. `get_selection` returns the human's visual selection, the live one while they are selecting and the last completed one otherwise, so you can act on what they highlighted.",
+			"Read or move the cursor, read the human's visual selection, and check whose turn it is. `get` reports where the cursor is, defaulting to the window you are focused on. `set` moves the cursor in a named window: pass `win` deliberately, since pi otherwise never moves the human's cursor. `get_selection` returns the human's visual selection, the live one while they are selecting and the last completed one otherwise, so you can act on what they highlighted. `turn` reports whether the human is actively typing, so you can defer edits to a buffer they share with you until they pause.",
 		parameters: Type.Object({
 			action: Type.Union(
-				[Type.Literal("get"), Type.Literal("set"), Type.Literal("get_selection")],
+				[
+					Type.Literal("get"),
+					Type.Literal("set"),
+					Type.Literal("get_selection"),
+					Type.Literal("turn"),
+				],
 				{
 					description:
-						"Read the cursor (`get`), move it in a window (`set`) or read the visual selection (`get_selection`).",
+						"Read the cursor (`get`), move it in a window (`set`), read the visual selection (`get_selection`) or check whose turn it is (`turn`).",
 				},
 			),
 			win: Type.Optional(
@@ -516,6 +522,27 @@ function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 		}),
 		async execute(_id, params, _signal, _onUpdate, _ctx) {
 			const client = requireClient(getClient);
+
+			if (params.action === "turn") {
+				// Read-only inference over pi's own cursor cache; no
+				// nvim round trip and no capability gate, since nothing
+				// is asked of the peer. void the unused client so the
+				// pairing check above still runs for every action.
+				void client;
+				const state = turnState();
+				const verdict = state.typing
+					? "the human is typing — defer edits to a buffer you share with them"
+					: state.humanActive
+						? "the human is active — proceed with care"
+						: "no recent human activity — your turn";
+				const since = state.msSinceMove === null ? "never" : `${state.msSinceMove}ms ago`;
+				return {
+					content: [
+						{ type: "text", text: `${verdict} (mode ${state.mode ?? "?"}, last move ${since})` },
+					],
+					details: state,
+				};
+			}
 
 			if (params.action === "get") {
 				requireCapability("nvim.cursor.get");
