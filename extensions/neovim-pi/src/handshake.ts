@@ -55,6 +55,7 @@ export const EXPECTED_NVIM_CAPABILITIES: readonly string[] = [
 	"nvim.buffer.switch",
 	"nvim.buffer.delete",
 	"nvim.status.publish",
+	"nvim.lsp.query",
 ];
 
 export interface PeerInfo {

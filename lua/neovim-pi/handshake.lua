@@ -35,6 +35,7 @@ local NVIM_CAPABILITIES = {
   "nvim.buffer.switch",
   "nvim.buffer.delete",
   "nvim.status.publish",
+  "nvim.lsp.query",
 }
 
 ---@type { version: string, capabilities: string[] }?
