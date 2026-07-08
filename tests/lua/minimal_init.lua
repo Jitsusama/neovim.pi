@@ -16,6 +16,15 @@ local cwd = vim.fn.getcwd()
 vim.opt.packpath = ""
 vim.opt.runtimepath = cwd
 
+-- Restore nvim's own runtime (not user plugins) so core Lua
+-- modules loaded lazily off the runtimepath resolve: vim.uri,
+-- vim.lsp and friends. Isolation is about keeping the user's
+-- installed plugins from shadowing the working tree, not about
+-- dropping nvim's bundled runtime.
+if vim.env.VIMRUNTIME and vim.env.VIMRUNTIME ~= "" then
+  vim.opt.runtimepath:append(vim.env.VIMRUNTIME)
+end
+
 -- Drop any neovim-pi modules that nvim's site pack loader
 -- may have eagerly cached before this init ran.
 for name in pairs(package.loaded) do
