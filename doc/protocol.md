@@ -85,6 +85,7 @@ the full catalogue.
 | `nvim.cursor.set` | Move the cursor in a window pi owns (or the named window). |
 | `nvim.extmark.set` | Place an extmark (highlight, virtual text). |
 | `nvim.status.publish` | Render pi status fragments somewhere. |
+| `nvim.lsp.query` | Answer LSP queries from nvim's own servers. |
 
 ## `pi://` URI scheme
 

@@ -27,6 +27,7 @@ import { socketExists } from "./src/discovery.js";
 import { registerEditorTools } from "./src/editor-tools.js";
 import { registerEventBridge } from "./src/event-bridge.js";
 import { registerLifecycleTools } from "./src/lifecycle-tools.js";
+import { registerLspBackend } from "./src/lsp-backend.js";
 import { forgetPairing, lastPairing } from "./src/state.js";
 import { clearStatus, renderStatus } from "./src/status-line.js";
 import { registerNvimTools } from "./src/tools.js";
@@ -93,4 +94,13 @@ export default async function (pi: ExtensionAPI) {
 	// -- Editor-control tools: edit, view and persist real files --
 
 	registerEditorTools(pi, () => getClient());
+
+	// -- LSP backend: forward the harness's `lsp` tool to nvim --
+	//
+	// Register a backend with agentic-harness.pi over the shared
+	// event bus. It reports itself available only while paired
+	// with an nvim that advertises `nvim.lsp.query`, so the `lsp`
+	// tool routes to the editor's own servers when present and
+	// falls back to the harness's standalone servers otherwise.
+	registerLspBackend(pi, () => getClient());
 }

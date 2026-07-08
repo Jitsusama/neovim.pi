@@ -446,3 +446,37 @@ Receive a composed pi status fragment. The plugin
 doesn't render it; user config can pull from
 `require("neovim-pi").status()` to display in
 statusline or winbar.
+
+### `nvim.lsp.query`
+
+```
+neovim-pi.lsp.definition(path, line, col)         → { ok, items }
+neovim-pi.lsp.references(path, line, col)         → { ok, items }
+neovim-pi.lsp.hover(path, line, col)              → { ok, hover }
+neovim-pi.lsp.diagnostics(path)                   → { ok, items }
+neovim-pi.lsp.document_symbols(path)              → { ok, items }
+neovim-pi.lsp.workspace_symbols(query)            → { ok, items }
+neovim-pi.lsp.rename(path, line, col, new_name)   → { ok, changes }
+neovim-pi.lsp.code_actions(path, range?)          → { ok, items }
+```
+
+Answer LSP queries from the language servers already
+running in the user's nvim, so a pi extension can offer
+semantic code intelligence without spawning its own
+servers. Every function opens the file, waits for a
+server to attach and publish once (so the project is
+built), runs the request, and normalizes the reply to a
+1-indexed line and 0-indexed UTF-8 byte column, the
+convention pi's tools use. Positions are translated from
+the protocol's UTF-16 code units at this edge using the
+client's offset encoding. A file no server serves returns
+`{ ok = false, reason = "no-client" }`.
+
+The agentic-harness.pi `lsp` tool consumes this over the
+shared event bus: neovim-pi registers a backend at
+`lsp:register-backend`, and the tool routes to nvim's
+servers whenever a session is paired.
+
+`rename` applies the edits and writes the touched files
+to disk, then reports what changed. The other operations
+are read-only.
