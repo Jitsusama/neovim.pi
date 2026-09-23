@@ -30,6 +30,7 @@ import { registerLifecycleTools } from "./src/lifecycle-tools.js";
 import { registerLspBackend } from "./src/lsp-backend.js";
 import { forgetPairing, lastPairing } from "./src/state.js";
 import { clearStatus, renderStatus } from "./src/status-line.js";
+import { pairedToolSurface } from "./src/tool-surface.js";
 import { registerNvimTools } from "./src/tools.js";
 
 export default async function (pi: ExtensionAPI) {
@@ -52,12 +53,35 @@ export default async function (pi: ExtensionAPI) {
 	// told to start emitting in `attachToSocket`.
 	installCursorStream();
 
+	// -- Tool surface: editor tools only while paired --
+	//
+	// Recomputed wherever pairing can change: the reattach at
+	// session start, and after the attach and detach tools run.
+	// See `src/tool-surface.ts` for why.
+
+	const applyToolSurface = (): void => {
+		pi.setActiveTools(
+			pairedToolSurface(
+				pi.getActiveTools(),
+				pi.getAllTools().map((tool) => tool.name),
+				getClient() !== null,
+			),
+		);
+	};
+
+	pi.on("tool_result", async (event) => {
+		if (event.toolName === "nvim_attach" || event.toolName === "nvim_detach") {
+			applyToolSurface();
+		}
+	});
+
 	// -- Lifecycle: restore prior pairing if still alive --
 
 	pi.on("session_start", async (_event, ctx) => {
 		const socket = lastPairing(ctx);
 		if (!socket) {
 			renderStatus(ctx, false);
+			applyToolSurface();
 			return;
 		}
 
@@ -66,6 +90,7 @@ export default async function (pi: ExtensionAPI) {
 			// don't try again next reload.
 			forgetPairing(pi);
 			renderStatus(ctx, false);
+			applyToolSurface();
 			return;
 		}
 
@@ -76,6 +101,7 @@ export default async function (pi: ExtensionAPI) {
 			forgetPairing(pi);
 			renderStatus(ctx, false);
 		}
+		applyToolSurface();
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
