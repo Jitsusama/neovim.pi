@@ -20,7 +20,7 @@
  * substantive concern lives in `src/`.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { attachToSocket, detachFromNeovim, getClient } from "./src/attach.js";
 import { installCursorStream } from "./src/cursor.js";
 import { socketExists } from "./src/discovery.js";
@@ -57,9 +57,12 @@ export default async function (pi: ExtensionAPI) {
 	//
 	// Recomputed wherever pairing can change: the reattach at
 	// session start, and after the attach and detach tools run.
-	// See `src/tool-surface.ts` for why.
+	// See `src/tool-surface.ts` for why. Only where there is a UI
+	// (TUI and RPC): a subagent runs in json mode with whatever
+	// palette it was given, which is left alone.
 
-	const applyToolSurface = (): void => {
+	const applyToolSurface = (ctx: ExtensionContext): void => {
+		if (!ctx.hasUI) return;
 		pi.setActiveTools(
 			pairedToolSurface(
 				pi.getActiveTools(),
@@ -69,9 +72,9 @@ export default async function (pi: ExtensionAPI) {
 		);
 	};
 
-	pi.on("tool_result", async (event) => {
+	pi.on("tool_result", async (event, ctx) => {
 		if (event.toolName === "nvim_attach" || event.toolName === "nvim_detach") {
-			applyToolSurface();
+			applyToolSurface(ctx);
 		}
 	});
 
@@ -81,7 +84,7 @@ export default async function (pi: ExtensionAPI) {
 		const socket = lastPairing(ctx);
 		if (!socket) {
 			renderStatus(ctx, false);
-			applyToolSurface();
+			applyToolSurface(ctx);
 			return;
 		}
 
@@ -90,7 +93,7 @@ export default async function (pi: ExtensionAPI) {
 			// don't try again next reload.
 			forgetPairing(pi);
 			renderStatus(ctx, false);
-			applyToolSurface();
+			applyToolSurface(ctx);
 			return;
 		}
 
@@ -101,7 +104,7 @@ export default async function (pi: ExtensionAPI) {
 			forgetPairing(pi);
 			renderStatus(ctx, false);
 		}
-		applyToolSurface();
+		applyToolSurface(ctx);
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
