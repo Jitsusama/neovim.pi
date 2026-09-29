@@ -13,8 +13,23 @@ const fakeClients: FakeClient[] = [];
 
 class FakeClient extends EventEmitter {
 	channelId = Promise.resolve(7);
-	transport = { _stream: { end: vi.fn() } };
 }
+
+/** Every connection opened, so a test can see which were closed. */
+const fakeLinks: { close: ReturnType<typeof vi.fn> }[] = [];
+
+vi.mock("../../extensions/neovim-pi/src/connection.js", () => ({
+	connectTo: vi.fn(async () => {
+		const link = {
+			reader: {},
+			writer: {},
+			closed: new Promise<void>(() => {}),
+			close: vi.fn(),
+		};
+		fakeLinks.push(link);
+		return link;
+	}),
+}));
 
 vi.mock("neovim", () => ({
 	attach: vi.fn(() => {
@@ -42,6 +57,7 @@ import {
 describe("attach lifecycle", () => {
 	beforeEach(() => {
 		fakeClients.length = 0;
+		fakeLinks.length = 0;
 	});
 
 	afterEach(async () => {
@@ -79,11 +95,10 @@ describe("attach lifecycle", () => {
 		expect(getPairedSocket()).toBeNull();
 	});
 
-	it("ends the socket stream on detach (so nvim doesn't exit)", async () => {
+	it("closes its socket on detach (so nvim doesn't exit)", async () => {
 		await attachToSocket("/tmp/test.sock");
-		const stream = fakeClients[0]?.transport._stream;
 		await detachFromNeovim();
-		expect(stream?.end).toHaveBeenCalled();
+		expect(fakeLinks[0]?.close).toHaveBeenCalled();
 	});
 
 	it("detach is safe to call when unpaired", async () => {

@@ -11,13 +11,24 @@
 
 import type { NeovimClient } from "neovim";
 import { attach } from "neovim";
+import { connectTo, type Link } from "./connection.js";
 import { clearCursor } from "./cursor.js";
 import { performHandshake } from "./handshake.js";
 import { silentLogger } from "./logger.js";
 import { registerHandlers } from "./registry.js";
 
+/**
+ * How long a connected nvim has to finish the handshake.
+ *
+ * A remembered pairing is retried at session start, which waits on
+ * it, so a socket that accepts and never answers would hold the
+ * session there for good. A live nvim answers in milliseconds.
+ */
+export const ATTACH_TIMEOUT_MS = 5000;
+
 let client: NeovimClient | null = null;
 let pairedSocket: string | null = null;
+let link: Link | null = null;
 
 /** Returns the currently attached client, or null if unattached. */
 export function getClient(): NeovimClient | null {
@@ -40,8 +51,36 @@ export async function attachToSocket(socket: string): Promise<NeovimClient> {
 		throw new Error(`already paired with ${pairedSocket}; detach first to switch to ${socket}`);
 	}
 
-	const next = attach({ socket, options: { logger: silentLogger() } });
+	const opened = await connectTo(socket);
+	const next = attach({
+		reader: opened.reader,
+		writer: opened.writer,
+		options: { logger: silentLogger() },
+	});
 	registerHandlers(next);
+	try {
+		await answered(greet(next), opened, `handshake on ${socket}`);
+	} catch (error) {
+		opened.close();
+		throw error;
+	}
+
+	next.on("disconnect", () => {
+		if (client === next) {
+			client = null;
+			pairedSocket = null;
+			link = null;
+		}
+	});
+
+	client = next;
+	pairedSocket = socket;
+	link = opened;
+	return next;
+}
+
+/** The handshake, then the start of the cursor stream. */
+async function greet(next: NeovimClient): Promise<void> {
 	await performHandshake(next);
 
 	// Begin the human-cursor push stream. The receiver was wired
@@ -54,17 +93,29 @@ export async function attachToSocket(socket: string): Promise<NeovimClient> {
 	} catch {
 		// No cursor stream on this nvim; degrade quietly.
 	}
+}
 
-	next.on("disconnect", () => {
-		if (client === next) {
-			client = null;
-			pairedSocket = null;
-		}
+/**
+ * The work's answer, or a failure once the socket hangs up or the
+ * clock runs out. The client never settles a request whose socket
+ * closed, so without the first a hang-up would wait out the clock.
+ */
+async function answered(work: Promise<unknown>, opened: Link, what: string): Promise<void> {
+	let timer: NodeJS.Timeout | undefined;
+	const clock = new Promise<never>((_, reject) => {
+		timer = setTimeout(
+			() => reject(new Error(`nvim did not answer the ${what} within ${ATTACH_TIMEOUT_MS}ms`)),
+			ATTACH_TIMEOUT_MS,
+		);
 	});
-
-	client = next;
-	pairedSocket = socket;
-	return next;
+	const hangup = opened.closed.then(() => {
+		throw new Error(`nvim hung up during the ${what}`);
+	});
+	try {
+		await Promise.race([work, hangup, clock]);
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 /**
@@ -80,8 +131,10 @@ export async function attachToSocket(socket: string): Promise<NeovimClient> {
 export async function detachFromNeovim(): Promise<void> {
 	if (!client) return;
 	const c = client;
+	const opened = link;
 	client = null;
 	pairedSocket = null;
+	link = null;
 
 	// Drop the cached human cursor; a stale position must not
 	// outlive the pairing. We reach here only on a clean detach
@@ -95,18 +148,13 @@ export async function detachFromNeovim(): Promise<void> {
 		// ledger and stage_win outlive the pairing, and because nvim
 		// reuses buffer numbers a reattach could green-light
 		// reload/delete --force on what is now the human's buffer.
-		await c.request("nvim_exec_lua", ['require("neovim-pi").reset()', []]);
+		// Bounded like the handshake, since a session's shutdown
+		// waits on this and a hung nvim would hold it for good.
+		const reset = c.request("nvim_exec_lua", ['require("neovim-pi").reset()', []]);
+		await (opened ? answered(reset, opened, "reset") : reset);
 	} catch {
 		// nvim may already be tearing down; the stream is harmless
 		// if it lingers, and a later attach re-clears the augroup.
 	}
-	try {
-		const stream = (c as unknown as { transport?: { _stream?: { end?: () => void } } }).transport
-			?._stream;
-		stream?.end?.();
-	} catch {
-		// Best-effort: dropping our reference lets GC reclaim the
-		// socket eventually. Nvim will see an idle channel until
-		// then, which is harmless (no commands flow through it).
-	}
+	opened?.close();
 }
