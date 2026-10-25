@@ -35,9 +35,7 @@ end
 
 vim.opt.runtimepath:append(vim.fn.stdpath("data") .. "/lazy/plenary.nvim")
 
--- Try common system locations for plenary (CI installs it
--- via the official action which places it under the runner
--- workspace).
+-- Try common system locations for plenary.
 for _, candidate in ipairs({
   cwd .. "/.deps/plenary.nvim",
   vim.fn.expand("~/.local/share/nvim/site/pack/hm/start/plenary.nvim"),

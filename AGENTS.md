@@ -88,8 +88,7 @@ neovim.pi/
 │   ├── ts/                   # vitest specs (TS half)
 │   ├── lua/                  # plenary.busted specs (Lua half)
 │   └── conformance/          # cross-language wire vectors
-├── scripts/                  # CI helpers (lua-test.sh)
-└── .github/workflows/ci.yml  # CI: lint + test + helptags
+└── scripts/                  # check.sh (every gate) and lua-test.sh
 ```
 
 ## Code style
@@ -120,7 +119,7 @@ neovim.pi/
 - **`stylua` enforces formatting.** Two-space indent,
   double quotes, LF endings. Run `pnpm lint:lua:fix`.
 - **`luacheck` enforces correctness.** Warnings are
-  treated as errors in CI. The config in `.luacheckrc`
+  treated as errors. The config in `.luacheckrc`
   allows the standard nvim globals and busted DSL.
 - **Buffer-local options use `vim.bo[buf].x = ...`**,
   not `vim.api.nvim_buf_set_option` (that's deprecated).
@@ -146,8 +145,8 @@ pnpm lint:ts    # just biome
 pnpm lint:lua   # just luacheck + stylua --check
 ```
 
-CI runs `pnpm lint` on every push and PR. Lint failures
-block merge.
+`pnpm check` runs `pnpm lint` before every merge. Lint
+failures block merge.
 
 ## Testing
 
@@ -175,7 +174,7 @@ pnpm test:lua    # plenary.busted specs for the nvim plugin
 - `tests/conformance/*.json` — cross-language wire
   vectors. Each side reads the same JSON and asserts
   the documented contract. Drift in either
-  implementation fails CI.
+  implementation fails `pnpm test`.
 
 ### What to test
 
@@ -222,19 +221,19 @@ that touch process env (`XDG_RUNTIME_DIR`) restore it in
 them in `afterEach`. Concurrent vitest workers each get
 their own tmp dir.
 
-## CI gates
+## Merge gates
 
-Every push and PR runs five jobs in parallel:
+There is no CI. `pnpm check` (scripts/check.sh) runs every
+gate locally, and a merge requires it to pass:
 
-1. **lint-ts** — `pnpm lint:ts` (biome)
-2. **lint-lua** — `luacheck` + `stylua --check`
-3. **test-ts** — `pnpm test:ts` (vitest)
-4. **test-lua** — `pnpm test:lua` (plenary.busted under
-   headless nvim)
-5. **helptags** — `nvim --headless -c "helptags doc"`
-   and verifies `doc/tags` is non-empty
-
-A merge requires all five green.
+1. `pnpm lint:ts` (biome)
+2. `pnpm lint:lua` (`luacheck` and `stylua --check`),
+   taking both from nixpkgs through `nix shell` when
+   they aren't on PATH
+3. `pnpm test:ts` (vitest)
+4. `pnpm test:lua` (plenary.busted under headless nvim)
+5. `pnpm helptags`, then a check that `doc/tags` isn't
+   empty
 
 ## When working on the protocol
 
@@ -286,8 +285,8 @@ A merge requires all five green.
   context. Keep this in sync with cwd via
   `DirChanged`.
 - `doc/neovim-pi.txt` provides `:help` tags. Run
-  `pnpm helptags` after edits; CI verifies tags
-  generate cleanly.
+  `pnpm helptags` after edits; `pnpm check` verifies
+  tags generate cleanly.
 
 ## Common gotchas
 
@@ -330,4 +329,5 @@ A merge requires all five green.
    confirm tags generate cleanly.
 7. Commit. Use conventional commit prefixes (`feat:`,
    `fix:`, `refactor:`, `test:`, `chore:`, `docs:`).
-8. Push and open a PR. CI must be green before merge.
+8. Run `pnpm check`, push and open a PR. It must pass
+   before merge.

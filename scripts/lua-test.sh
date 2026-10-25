@@ -3,15 +3,14 @@
 #
 # Plenary's busted runner is the standard nvim plugin test
 # harness. We look for plenary on the user's runtimepath or
-# fall back to `.deps/plenary.nvim` (CI clones it there).
+# fall back to `.deps/plenary.nvim`, cloned there when missing.
 
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 # Bootstrap plenary into .deps/ when it's missing entirely
-# (CI runs end up here; local devs typically already have
-# plenary on their nvim rtp).
+# (most machines already have plenary on their nvim rtp).
 if [[ ! -d .deps/plenary.nvim ]] \
   && [[ ! -d "$HOME/.local/share/nvim/site/pack/hm/start/plenary.nvim" ]] \
   && [[ ! -d "$HOME/.local/share/nvim/site/pack/vendor/start/plenary.nvim" ]]; then
