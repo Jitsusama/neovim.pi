@@ -15,6 +15,7 @@
     "./lib": "./lib/index.ts"
   },
   "scripts": {
+    "check": "./scripts/check.sh",
     "lint": "pnpm lint:ts && pnpm lint:lua",
     "lint:fix": "pnpm lint:ts:fix && pnpm lint:lua:fix",
     "lint:ts": "biome check extensions/ lib/ tests/ts/",

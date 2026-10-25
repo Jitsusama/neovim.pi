@@ -1,5 +1,6 @@
 node_modules
 .deps/
+doc/tags
 coverage/
 *.log
 *.tsbuildinfo
