@@ -122,8 +122,8 @@ Pi never auto-attaches. The agent calls
    `/reload` restores the same nvim if it's still
    alive; if it died, pi forgets and starts fresh.
 
-The status line shows a single nerd-font vi glyph:
-green when paired, muted when not.
+While pi is paired, its status line shows Vim's mark
+in green; unpaired, it shows nothing.
 
 ## Testing
 

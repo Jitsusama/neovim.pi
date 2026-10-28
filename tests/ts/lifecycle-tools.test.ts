@@ -257,7 +257,7 @@ describe("lifecycle tools", () => {
 			expect(result?.content[0]?.text).toMatch(/no pairing/i);
 		});
 
-		it("paints the status line in the muted tone after detach", async () => {
+		it("clears the status line after detach", async () => {
 			const { pi, tools } = fakePi();
 			registerLifecycleTools(pi);
 			const { ctx, statusCalls } = fakeCtx();
@@ -266,7 +266,7 @@ describe("lifecycle tools", () => {
 
 			await tools.get("nvim_attach")?.execute("id", { socket: sock.path }, new AbortController().signal, () => {}, ctx);
 			await tools.get("nvim_detach")?.execute("id", {}, new AbortController().signal, () => {}, ctx);
-			expect(statusCalls.at(-1)).toContain("muted");
+			expect(statusCalls.at(-1)).toBe("<cleared>");
 		});
 
 		it("forgets the pairing intent in the session log", async () => {

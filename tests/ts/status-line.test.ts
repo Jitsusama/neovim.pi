@@ -5,8 +5,8 @@ import { STATUS_SLOT, clearStatus, renderStatus } from "../../extensions/neovim-
 /**
  * Captures every setStatus call so tests can assert on
  * what showed up in the footer. The theme.fg shim records
- * the tone so a successful render is distinguishable from
- * a muted one without depending on the exact ANSI bytes.
+ * the tone, so a test can tell which tone painted the mark
+ * without depending on the exact ANSI bytes.
  */
 function fakeCtx(): {
 	ctx: ExtensionContext;
@@ -40,11 +40,11 @@ describe("renderStatus", () => {
 		expect(lastTone()).toBe("success");
 	});
 
-	it("writes an unpaired indicator when detached", () => {
+	it("shows nothing in the footer when detached", () => {
 		const { ctx, slots, lastTone } = fakeCtx();
 		renderStatus(ctx, false);
-		expect(slots).toHaveLength(1);
-		expect(lastTone()).toBe("muted");
+		expect(slots).toEqual([{ slot: STATUS_SLOT, content: undefined }]);
+		expect(lastTone()).toBeNull();
 	});
 
 	it("can be called repeatedly to reflect state transitions", () => {
@@ -54,6 +54,7 @@ describe("renderStatus", () => {
 		renderStatus(ctx, true);
 		expect(slots).toHaveLength(3);
 		expect(slots.every((s) => s.slot === STATUS_SLOT)).toBe(true);
+		expect(slots.map((s) => s.content !== undefined)).toEqual([true, false, true]);
 	});
 });
 
