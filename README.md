@@ -127,10 +127,13 @@ in green; unpaired, it shows nothing.
 
 ## Testing
 
-Both halves have test suites. Lint and tests run on
-every push via GitHub Actions.
+Both halves have test suites. Nothing runs them on a
+push; run `pnpm check` before merging, which lints
+both halves, runs both suites and checks the help
+tags.
 
 ```sh
+pnpm check          # everything a change must pass
 pnpm test           # both halves
 pnpm test:ts        # vitest specs for the pi extension
 pnpm test:lua       # plenary.busted specs for the nvim plugin
