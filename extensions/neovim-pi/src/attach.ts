@@ -7,10 +7,14 @@
  *
  * The neovim npm package monkey-patches `console`; we
  * pass a no-op logger via `attach()` to opt out.
+ *
+ * The package is loaded at the first pairing, not with
+ * this module: it and the winston logger it brings took
+ * about 600 ms of a pi start's CPU, and most sessions
+ * never pair.
  */
 
 import type { NeovimClient } from "neovim";
-import { attach } from "neovim";
 import { connectTo, type Link } from "./connection.js";
 import { clearCursor } from "./cursor.js";
 import { performHandshake } from "./handshake.js";
@@ -51,6 +55,7 @@ export async function attachToSocket(socket: string): Promise<NeovimClient> {
 		throw new Error(`already paired with ${pairedSocket}; detach first to switch to ${socket}`);
 	}
 
+	const { attach } = await import("neovim");
 	const opened = await connectTo(socket);
 	const next = attach({
 		reader: opened.reader,
