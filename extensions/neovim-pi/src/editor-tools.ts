@@ -19,8 +19,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { NeovimClient } from "neovim";
 import { Type } from "typebox";
-import { turnState } from "./cursor.js";
-import { peerHas } from "./handshake.js";
+import { turnState } from "./cursor.ts";
+import { peerHas } from "./handshake.ts";
 
 type ClientResolver = () => NeovimClient | null;
 

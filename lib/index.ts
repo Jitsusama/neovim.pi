@@ -32,15 +32,15 @@ export {
 	PI_CAPABILITIES,
 	PROTOCOL_VERSION,
 	peerHas,
-} from "../extensions/neovim-pi/src/handshake.js";
-export { addMethod, removeMethod } from "../extensions/neovim-pi/src/registry.js";
+} from "../extensions/neovim-pi/src/handshake.ts";
+export { addMethod, removeMethod } from "../extensions/neovim-pi/src/registry.ts";
 export {
 	composeStatus,
 	setFragment,
 	subscribe as subscribeStatus,
-} from "../extensions/neovim-pi/src/status.js";
+} from "../extensions/neovim-pi/src/status.ts";
 
-import { getClient as _getClient, getPairedSocket } from "../extensions/neovim-pi/src/attach.js";
+import { getClient as _getClient, getPairedSocket } from "../extensions/neovim-pi/src/attach.ts";
 
 /** Returns the live NeovimClient, or null if not attached. */
 export const getClient = _getClient;

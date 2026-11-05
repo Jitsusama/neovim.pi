@@ -25,7 +25,7 @@
  * crashing neovim-pi.
  */
 
-import { addMethod, removeMethod } from "./registry.js";
+import { addMethod, removeMethod } from "./registry.ts";
 
 /** Minimal event-bus shape the bridge depends on. */
 export interface EventBus {

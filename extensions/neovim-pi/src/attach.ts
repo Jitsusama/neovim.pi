@@ -15,11 +15,11 @@
  */
 
 import type { NeovimClient } from "neovim";
-import { connectTo, type Link } from "./connection.js";
-import { clearCursor } from "./cursor.js";
-import { performHandshake } from "./handshake.js";
-import { silentLogger } from "./logger.js";
-import { registerHandlers } from "./registry.js";
+import { connectTo, type Link } from "./connection.ts";
+import { clearCursor } from "./cursor.ts";
+import { performHandshake } from "./handshake.ts";
+import { silentLogger } from "./logger.ts";
+import { registerHandlers } from "./registry.ts";
 
 /**
  * How long a connected nvim has to finish the handshake.

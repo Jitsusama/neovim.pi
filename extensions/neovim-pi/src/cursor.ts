@@ -9,7 +9,7 @@
  * without a round trip. The turn-taking rule reads it.
  */
 
-import { addNotificationHandler } from "./registry.js";
+import { addNotificationHandler } from "./registry.ts";
 
 export interface CursorSnapshot {
 	win: number;
