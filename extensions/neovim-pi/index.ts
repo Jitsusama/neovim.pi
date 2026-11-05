@@ -21,17 +21,17 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { attachToSocket, detachFromNeovim, getClient } from "./src/attach.js";
-import { installCursorStream } from "./src/cursor.js";
-import { socketExists } from "./src/discovery.js";
-import { registerEditorTools } from "./src/editor-tools.js";
-import { registerEventBridge } from "./src/event-bridge.js";
-import { registerLifecycleTools } from "./src/lifecycle-tools.js";
-import { registerLspBackend } from "./src/lsp-backend.js";
-import { forgetPairing, lastPairing } from "./src/state.js";
-import { clearStatus, renderStatus } from "./src/status-line.js";
-import { pairedToolSurface } from "./src/tool-surface.js";
-import { registerNvimTools } from "./src/tools.js";
+import { attachToSocket, detachFromNeovim, getClient } from "./src/attach.ts";
+import { installCursorStream } from "./src/cursor.ts";
+import { socketExists } from "./src/discovery.ts";
+import { registerEditorTools } from "./src/editor-tools.ts";
+import { registerEventBridge } from "./src/event-bridge.ts";
+import { registerLifecycleTools } from "./src/lifecycle-tools.ts";
+import { registerLspBackend } from "./src/lsp-backend.ts";
+import { forgetPairing, lastPairing } from "./src/state.ts";
+import { clearStatus, renderStatus } from "./src/status-line.ts";
+import { pairedToolSurface } from "./src/tool-surface.ts";
+import { registerNvimTools } from "./src/tools.ts";
 
 export default async function (pi: ExtensionAPI) {
 	// -- Cross-extension registration bridge --

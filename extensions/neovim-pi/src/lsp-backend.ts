@@ -20,7 +20,7 @@
  */
 
 import type { NeovimClient } from "neovim";
-import { peerHas } from "./handshake.js";
+import { peerHas } from "./handshake.ts";
 
 /** Minimal event-bus shape we depend on (see event-bridge.ts). */
 interface EventBus {

@@ -14,10 +14,10 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { attachToSocket, detachFromNeovim, getClient, getPairedSocket } from "./attach.js";
-import { listSocketCandidates, socketExists } from "./discovery.js";
-import { forgetPairing, rememberPairing } from "./state.js";
-import { renderStatus } from "./status-line.js";
+import { attachToSocket, detachFromNeovim, getClient, getPairedSocket } from "./attach.ts";
+import { listSocketCandidates, socketExists } from "./discovery.ts";
+import { forgetPairing, rememberPairing } from "./state.ts";
+import { renderStatus } from "./status-line.ts";
 
 /** Register all pairing-lifecycle tools. */
 export function registerLifecycleTools(pi: ExtensionAPI): void {
@@ -159,7 +159,7 @@ async function chooseSocket(ctx: ExtensionContext, hint?: string): Promise<strin
  * fall back to the socket path. Pid and age sit in the
  * sidecar so the user can disambiguate identical cwds.
  */
-function formatCandidate(c: import("./discovery.js").SocketCandidate): string {
+function formatCandidate(c: import("./discovery.ts").SocketCandidate): string {
 	const primary = c.cwd ?? c.socket;
 	return `${primary}  (pid ${c.pid ?? "?"}, ${formatAge(c.mtimeMs)})`;
 }
