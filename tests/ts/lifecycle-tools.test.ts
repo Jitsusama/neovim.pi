@@ -2,9 +2,14 @@ import { promises as fs } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// Mock the connection layer. We're not testing the npm `neovim`
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { NeovimClient } from "neovim";
+import type { Connection } from "../../extensions/neovim-pi/src/attach.js";
+import { registerLifecycleTools } from "../../extensions/neovim-pi/src/lifecycle-tools.js";
+
+// A stand-in connection. We're not testing the npm `neovim`
 // package or its msgpack-rpc transport here; we're testing what
 // lifecycle-tools.ts does with the attach/detach state machine.
 const attachState: { socket: string | null; client: { channelId: number } | null } = {
@@ -12,25 +17,22 @@ const attachState: { socket: string | null; client: { channelId: number } | null
 	client: null,
 };
 
-vi.mock("../../extensions/neovim-pi/src/attach.js", () => ({
+const connection: Connection = {
 	attachToSocket: async (socket: string) => {
 		if (attachState.socket && attachState.socket !== socket) {
 			throw new Error(`already paired with ${attachState.socket}`);
 		}
 		attachState.socket = socket;
 		attachState.client = { channelId: 99 };
-		return attachState.client;
+		return attachState.client as unknown as NeovimClient;
 	},
 	detachFromNeovim: async () => {
 		attachState.socket = null;
 		attachState.client = null;
 	},
-	getClient: () => attachState.client,
+	getClient: () => attachState.client as unknown as NeovimClient | null,
 	getPairedSocket: () => attachState.socket,
-}));
-
-import { registerLifecycleTools } from "../../extensions/neovim-pi/src/lifecycle-tools.js";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+};
 
 interface CapturedTool {
 	name: string;
@@ -107,7 +109,7 @@ describe("lifecycle tools", () => {
 	describe("nvim_list_candidates", () => {
 		it("reports no candidates when nothing is listening", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 
 			const result = await tools.get("nvim_list_candidates")?.execute("id", {}, new AbortController().signal, () => {}, ctx);
@@ -116,7 +118,7 @@ describe("lifecycle tools", () => {
 
 		it("reports each listening socket the discoverer finds", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 			const sock = await liveSocket(dir, "nvim-555.sock");
 			cleanups.push(sock.close);
@@ -130,7 +132,7 @@ describe("lifecycle tools", () => {
 	describe("nvim_attach", () => {
 		it("rejects a hint pointing at no socket", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 
 			await expect(
@@ -142,7 +144,7 @@ describe("lifecycle tools", () => {
 
 		it("auto-attaches when exactly one candidate exists", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 			const sock = await liveSocket(dir, "nvim-100.sock");
 			cleanups.push(sock.close);
@@ -154,7 +156,7 @@ describe("lifecycle tools", () => {
 
 		it("asks the user when multiple candidates exist", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const sockA = await liveSocket(dir, "nvim-100.sock");
 			const sockB = await liveSocket(dir, "nvim-200.sock");
 			cleanups.push(sockA.close, sockB.close);
@@ -175,7 +177,7 @@ describe("lifecycle tools", () => {
 
 		it("shows the cwd sidecar in the picker label so the user can pick by project", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const sockA = await liveSocket(dir, "nvim-101.sock");
 			const sockB = await liveSocket(dir, "nvim-202.sock");
 			cleanups.push(sockA.close, sockB.close);
@@ -199,7 +201,7 @@ describe("lifecycle tools", () => {
 
 		it("rejects when no candidates exist and no hint is provided", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 			await expect(
 				tools.get("nvim_attach")?.execute("id", {}, new AbortController().signal, () => {}, ctx),
@@ -208,7 +210,7 @@ describe("lifecycle tools", () => {
 
 		it("records the pairing intent in the session log", async () => {
 			const { pi, tools, entries } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 			const sock = await liveSocket(dir, "nvim-300.sock");
 			cleanups.push(sock.close);
@@ -223,7 +225,7 @@ describe("lifecycle tools", () => {
 
 		it("paints the status line in the success tone after attaching", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx, statusCalls } = fakeCtx();
 			const sock = await liveSocket(dir, "nvim-400.sock");
 			cleanups.push(sock.close);
@@ -236,7 +238,7 @@ describe("lifecycle tools", () => {
 	describe("nvim_detach", () => {
 		it("releases the current pairing", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 			const sock = await liveSocket(dir, "nvim-500.sock");
 			cleanups.push(sock.close);
@@ -250,7 +252,7 @@ describe("lifecycle tools", () => {
 
 		it("is safe to call when not paired", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 
 			const result = await tools.get("nvim_detach")?.execute("id", {}, new AbortController().signal, () => {}, ctx);
@@ -259,7 +261,7 @@ describe("lifecycle tools", () => {
 
 		it("clears the status line after detach", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx, statusCalls } = fakeCtx();
 			const sock = await liveSocket(dir, "nvim-600.sock");
 			cleanups.push(sock.close);
@@ -271,7 +273,7 @@ describe("lifecycle tools", () => {
 
 		it("forgets the pairing intent in the session log", async () => {
 			const { pi, tools, entries } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 			const sock = await liveSocket(dir, "nvim-700.sock");
 			cleanups.push(sock.close);
@@ -288,7 +290,7 @@ describe("lifecycle tools", () => {
 	describe("nvim_status", () => {
 		it("reports not paired when unattached", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 
 			const result = await tools.get("nvim_status")?.execute("id", {}, new AbortController().signal, () => {}, ctx);
@@ -298,7 +300,7 @@ describe("lifecycle tools", () => {
 
 		it("reports the socket and channel when paired", async () => {
 			const { pi, tools } = fakePi();
-			registerLifecycleTools(pi);
+			registerLifecycleTools(pi, connection);
 			const { ctx } = fakeCtx();
 			const sock = await liveSocket(dir, "nvim-800.sock");
 			cleanups.push(sock.close);

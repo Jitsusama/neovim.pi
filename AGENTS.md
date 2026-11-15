@@ -259,7 +259,14 @@ gate locally, and a merge requires it to pass:
   can import it without loading the companion
   extension.
 - **Caching the nvim client belongs in the extension**;
-  the lib stays pure. Auth functions are stateless;
+  the lib stays pure.
+- **State is per conversation.** The package declares
+  `pi.sessionStateKeyed`, so a host loads its modules
+  once for every conversation it runs. Build a
+  conversation's state (registry, connection) in the
+  extension's factory, which runs once per conversation;
+  keep what belongs to one pairing in a `WeakMap` keyed
+  by its `NeovimClient`. Never a module-level `let`. Auth functions are stateless;
   the extension wraps in a session-lifetime cache.
 - Tools the agent calls go through `registerTool`; the
   call/result render handlers stay inline with the

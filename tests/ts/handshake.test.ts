@@ -72,8 +72,8 @@ describe("peerHas", () => {
 			return { version: "0.1.0", capabilities: ["nvim.buffer.open", "nvim.status.publish"] };
 		});
 		await performHandshake(client);
-		expect(peerHas("nvim.buffer.open")).toBe(true);
-		expect(peerHas("nvim.status.publish")).toBe(true);
+		expect(peerHas(client, "nvim.buffer.open")).toBe(true);
+		expect(peerHas(client, "nvim.status.publish")).toBe(true);
 	});
 
 	it("reports false for capabilities the peer did not advertise", async () => {
@@ -82,8 +82,30 @@ describe("peerHas", () => {
 			return { version: "0.1.0", capabilities: ["nvim.buffer.open"] };
 		});
 		await performHandshake(client);
-		expect(peerHas("nvim.cursor.set")).toBe(false);
-		expect(peerHas("totally.made.up")).toBe(false);
+		expect(peerHas(client, "nvim.cursor.set")).toBe(false);
+		expect(peerHas(client, "totally.made.up")).toBe(false);
+	});
+
+	it("answers for the client asked about, not the last one to shake hands", async () => {
+		const old = fakeClient((method) => {
+			if (method === "nvim_get_api_info") return [1, {}];
+			return { version: "0.1.0", capabilities: [] };
+		});
+		const current = fakeClient((method) => {
+			if (method === "nvim_get_api_info") return [2, {}];
+			return { version: "0.2.0", capabilities: ["nvim.lsp.query"] };
+		});
+		await performHandshake(current);
+		await performHandshake(old);
+		expect({
+			current: peerHas(current, "nvim.lsp.query"),
+			old: peerHas(old, "nvim.lsp.query"),
+		}).toEqual({ current: true, old: false });
+	});
+
+	it("reports nothing for a client that never shook hands", () => {
+		const never = fakeClient(() => undefined);
+		expect(peerHas(never, "nvim.buffer.open")).toBe(false);
 	});
 });
 
@@ -94,7 +116,7 @@ describe("getPeerInfo", () => {
 			return { version: "1.2.3", capabilities: ["nvim.buffer.markStale"] };
 		});
 		await performHandshake(client);
-		const peer = getPeerInfo();
+		const peer = getPeerInfo(client);
 		expect(peer?.version).toBe("1.2.3");
 		expect(peer?.capabilities).toContain("nvim.buffer.markStale");
 	});

@@ -12,6 +12,11 @@
  * this module: it and the winston logger it brings took
  * about 600 ms of a pi start's CPU, and most sessions
  * never pair.
+ *
+ * A connection belongs to one conversation. A host runs
+ * many conversations in one process and may share this
+ * module among them, so each conversation makes its own
+ * at its start, and one's pairing is never another's.
  */
 
 import type { NeovimClient } from "neovim";
@@ -19,7 +24,7 @@ import { connectTo, type Link } from "./connection.ts";
 import { clearCursor } from "./cursor.ts";
 import { performHandshake } from "./handshake.ts";
 import { silentLogger } from "./logger.ts";
-import { registerHandlers } from "./registry.ts";
+import type { Registry } from "./registry.ts";
 
 /**
  * How long a connected nvim has to finish the handshake.
@@ -30,58 +35,78 @@ import { registerHandlers } from "./registry.ts";
  */
 export const ATTACH_TIMEOUT_MS = 5000;
 
-let client: NeovimClient | null = null;
-let pairedSocket: string | null = null;
-let link: Link | null = null;
-
-/** Returns the currently attached client, or null if unattached. */
-export function getClient(): NeovimClient | null {
-	return client;
+/** One conversation's pairing with an nvim, and the verbs that change it. */
+export interface Connection {
+	/** Returns the currently attached client, or null if unattached. */
+	getClient(): NeovimClient | null;
+	/** Returns the socket path of the current pairing, or null. */
+	getPairedSocket(): string | null;
+	/**
+	 * Attach to a specific nvim socket. Throws if already
+	 * attached to a different socket (caller must detach
+	 * first); idempotent when the path matches.
+	 */
+	attachToSocket(socket: string): Promise<NeovimClient>;
+	/**
+	 * Detach and release the connection. Safe to call
+	 * multiple times.
+	 */
+	detachFromNeovim(): Promise<void>;
 }
 
-/** Returns the socket path of the current pairing, or null. */
-export function getPairedSocket(): string | null {
-	return pairedSocket;
-}
+/** A connection of its own, whose clients answer nvim from `registry`. */
+export function createConnection(registry: Registry): Connection {
+	let client: NeovimClient | null = null;
+	let pairedSocket: string | null = null;
+	let link: Link | null = null;
 
-/**
- * Attach to a specific nvim socket. Throws if already
- * attached to a different socket (caller must detach
- * first); idempotent when the path matches.
- */
-export async function attachToSocket(socket: string): Promise<NeovimClient> {
-	if (client && pairedSocket === socket) return client;
-	if (client) {
-		throw new Error(`already paired with ${pairedSocket}; detach first to switch to ${socket}`);
-	}
+	return {
+		getClient: () => client,
+		getPairedSocket: () => pairedSocket,
+		async attachToSocket(socket) {
+			if (client && pairedSocket === socket) return client;
+			if (client) {
+				throw new Error(`already paired with ${pairedSocket}; detach first to switch to ${socket}`);
+			}
 
-	const { attach } = await import("neovim");
-	const opened = await connectTo(socket);
-	const next = attach({
-		reader: opened.reader,
-		writer: opened.writer,
-		options: { logger: silentLogger() },
-	});
-	registerHandlers(next);
-	try {
-		await answered(greet(next), opened, `handshake on ${socket}`);
-	} catch (error) {
-		opened.close();
-		throw error;
-	}
+			const { attach } = await import("neovim");
+			const opened = await connectTo(socket);
+			const next = attach({
+				reader: opened.reader,
+				writer: opened.writer,
+				options: { logger: silentLogger() },
+			});
+			registry.registerHandlers(next);
+			try {
+				await answered(greet(next), opened, `handshake on ${socket}`);
+			} catch (error) {
+				opened.close();
+				throw error;
+			}
 
-	next.on("disconnect", () => {
-		if (client === next) {
+			next.on("disconnect", () => {
+				if (client === next) {
+					client = null;
+					pairedSocket = null;
+					link = null;
+				}
+			});
+
+			client = next;
+			pairedSocket = socket;
+			link = opened;
+			return next;
+		},
+		async detachFromNeovim() {
+			if (!client) return;
+			const c = client;
+			const opened = link;
 			client = null;
 			pairedSocket = null;
 			link = null;
-		}
-	});
-
-	client = next;
-	pairedSocket = socket;
-	link = opened;
-	return next;
+			await release(c, opened);
+		},
+	};
 }
 
 /** The handshake, then the start of the cursor stream. */
@@ -124,8 +149,7 @@ async function answered(work: Promise<unknown>, opened: Link, what: string): Pro
 }
 
 /**
- * Detach and release the connection. Safe to call
- * multiple times.
+ * Release a pairing's client, leaving its nvim running.
  *
  * The npm `neovim` package exposes `client.quit()`, but
  * that sends `:qa!` to nvim and kills the user's
@@ -133,20 +157,13 @@ async function answered(work: Promise<unknown>, opened: Link, what: string): Pro
  * socket directly so nvim sees an EOF on its channel
  * and detaches the peer without exiting.
  */
-export async function detachFromNeovim(): Promise<void> {
-	if (!client) return;
-	const c = client;
-	const opened = link;
-	client = null;
-	pairedSocket = null;
-	link = null;
-
+async function release(c: NeovimClient, opened: Link | null): Promise<void> {
 	// Drop the cached human cursor; a stale position must not
 	// outlive the pairing. We reach here only on a clean detach
-	// (the disconnect handler nulls `client` first, so this
-	// function returns early in that path), so the socket is
-	// still live and the reset request completes promptly.
-	clearCursor();
+	// (the disconnect handler nulls `client` first, so detach
+	// returns early in that path), so the socket is still live
+	// and the reset request completes promptly.
+	clearCursor(c);
 	try {
 		// reset() drops the nvim-side ownership ledger, forgets pi's
 		// stage windows and stops the cursor stream. Without this the

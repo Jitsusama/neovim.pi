@@ -212,7 +212,10 @@ export function registerLspBackend(
 	const entry = {
 		name: BACKEND_NAME,
 		priority: BACKEND_PRIORITY,
-		isAvailable: () => getClient() !== null && peerHas(LSP_CAPABILITY),
+		isAvailable: () => {
+			const client = getClient();
+			return client !== null && peerHas(client, LSP_CAPABILITY);
+		},
 		backend,
 	};
 	const announce = () => pi.events.emit("lsp:register-backend", entry);

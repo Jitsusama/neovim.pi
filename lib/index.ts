@@ -3,17 +3,25 @@
  * to talk to a paired neovim session.
  *
  * The `neovim-pi` extension owns the connection
- * lifecycle. This lib exposes the public surface other
- * extensions consume: types, capability flags, the
- * method-registration helper.
+ * lifecycle, one per conversation. This lib exposes the
+ * public surface other extensions consume: types,
+ * capability flags, what a paired client's plugin
+ * advertised, and the pieces a conversation's pairing is
+ * built from.
+ *
+ * It holds no pairing of its own. A host runs many
+ * conversations in one process, so a module-level "the
+ * client" could not say whose it was; a caller that has
+ * a client asks about that client.
  *
  * Import as:
  *
- *   import { addMethod, isAttached, getClient } from "neovim.pi/lib";
+ *   import { peerHas, type PeerInfo } from "neovim.pi/lib";
  *
  * **Cross-package callers** can't import this lib because
  * pi loads packages with isolated module roots. They use
- * the `pi.events` bridge instead:
+ * the `pi.events` bridge instead, which reaches the
+ * conversation whose bus they emit on:
  *
  *   pi.events.emit("neovim-pi:register-handler", {
  *     method: "buffer.uri.resolve",
@@ -25,6 +33,7 @@
  * See `doc/protocol.md` for the full contract.
  */
 
+export { type Connection, createConnection } from "../extensions/neovim-pi/src/attach.ts";
 export {
 	EXPECTED_NVIM_CAPABILITIES,
 	getPeerInfo,
@@ -33,22 +42,5 @@ export {
 	PROTOCOL_VERSION,
 	peerHas,
 } from "../extensions/neovim-pi/src/handshake.ts";
-export { addMethod, removeMethod } from "../extensions/neovim-pi/src/registry.ts";
-export {
-	composeStatus,
-	setFragment,
-	subscribe as subscribeStatus,
-} from "../extensions/neovim-pi/src/status.ts";
-
-import { getClient as _getClient, getPairedSocket } from "../extensions/neovim-pi/src/attach.ts";
-
-/** Returns the live NeovimClient, or null if not attached. */
-export const getClient = _getClient;
-
-/** Returns true when pi is currently paired with nvim. */
-export function isAttached(): boolean {
-	return _getClient() !== null;
-}
-
-/** Returns the socket path of the current pairing, or null. */
-export { getPairedSocket };
+export { createRegistry, type Registry } from "../extensions/neovim-pi/src/registry.ts";
+export { createStatus, type Status } from "../extensions/neovim-pi/src/status.ts";

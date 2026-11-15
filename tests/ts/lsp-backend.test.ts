@@ -22,15 +22,14 @@ function client(
 	} as unknown as NeovimClient;
 }
 
-/** Seed the module-level peer capabilities via a handshake. */
-async function seedPeer(capabilities: string[]): Promise<void> {
-	const c = {
+/** A client that shakes hands advertising whatever `peer.capabilities` holds then. */
+function shakingClient(peer: { capabilities: string[] }): NeovimClient {
+	return {
 		request: async (method: string) => {
 			if (method === "nvim_get_api_info") return [1, {}];
-			return { version: "0.1.0", capabilities };
+			return { version: "0.1.0", capabilities: peer.capabilities };
 		},
 	} as unknown as NeovimClient;
-	await performHandshake(c);
 }
 
 const range = {
@@ -210,13 +209,20 @@ describe("registerLspBackend", () => {
 		expect(entry.name).toBe("neovim");
 		expect(entry.priority).toBe(50);
 
-		await seedPeer(["nvim.lsp.query"]);
+		const peer = { capabilities: ["nvim.lsp.query"] };
+		const capable = shakingClient(peer);
+		await performHandshake(capable);
 		expect(entry.isAvailable()).toBe(false); // not paired yet
 
-		paired = client({ ok: true, items: [] });
+		paired = capable;
 		expect(entry.isAvailable()).toBe(true); // paired and capable
 
-		await seedPeer([]); // capability withdrawn
+		peer.capabilities = []; // capability withdrawn at the next handshake
+		await performHandshake(capable);
+		expect(entry.isAvailable()).toBe(false);
+
+		const other = shakingClient({ capabilities: ["nvim.lsp.query"] });
+		await performHandshake(other); // another pairing's nvim is capable
 		expect(entry.isAvailable()).toBe(false);
 	});
 });

@@ -10,9 +10,13 @@
  * Two events are recognised:
  *
  *   neovim-pi:register-handler { method, handler }
- *     → addMethod(method, handler)
+ *     → registry.addMethod(method, handler)
  *   neovim-pi:remove-handler   { method }
- *     → removeMethod(method)
+ *     → registry.removeMethod(method)
+ *
+ * Each conversation has its own bus and its own registry,
+ * so a handler registered in one answers only that
+ * conversation's nvim.
  *
  * On subscription the bridge emits `neovim-pi:ready` once
  * so extensions that loaded before neovim-pi can retry.
@@ -25,7 +29,7 @@
  * crashing neovim-pi.
  */
 
-import { addMethod, removeMethod } from "./registry.ts";
+import type { Registry } from "./registry.ts";
 
 /** Minimal event-bus shape the bridge depends on. */
 export interface EventBus {
@@ -45,19 +49,20 @@ interface RemovePayload {
 }
 
 /**
- * Subscribe the registration bridge to `bus` and emit the
- * `neovim-pi:ready` signal once subscriptions are wired.
+ * Subscribe the registration bridge to `bus`, registering into
+ * `registry`, and emit the `neovim-pi:ready` signal once
+ * subscriptions are wired.
  */
-export function registerEventBridge(bus: EventBus): void {
+export function registerEventBridge(bus: EventBus, registry: Registry): void {
 	bus.on("neovim-pi:register-handler", (data) => {
 		const payload = asRegisterPayload(data);
 		if (payload === null) return;
-		addMethod(payload.method, payload.handler);
+		registry.addMethod(payload.method, payload.handler);
 	});
 	bus.on("neovim-pi:remove-handler", (data) => {
 		const payload = asRemovePayload(data);
 		if (payload === null) return;
-		removeMethod(payload.method);
+		registry.removeMethod(payload.method);
 	});
 	bus.emit("neovim-pi:ready");
 }

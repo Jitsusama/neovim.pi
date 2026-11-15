@@ -10,38 +10,49 @@
  * This module exposes a tiny pub/sub so the companion
  * can re-emit updates over RPC. The pi UI rendering is
  * still owned by pi's native `ctx.ui.setStatus()`.
+ *
+ * A status line belongs to one conversation: a host runs
+ * many in one process, and one's fragments must never
+ * show on another's nvim.
  */
 
 type Listener = (composed: string) => void;
 
-const fragments = new Map<string, string>();
-const listeners = new Set<Listener>();
-
-/** Push or clear a fragment under a namespace. Empty clears. */
-export function setFragment(namespace: string, text: string): void {
-	if (text === "") {
-		fragments.delete(namespace);
-	} else {
-		fragments.set(namespace, text);
-	}
-	notify();
+/** One conversation's status fragments and who listens to them. */
+export interface Status {
+	/** Push or clear a fragment under a namespace. Empty clears. */
+	setFragment(namespace: string, text: string): void;
+	/** Compose the current set of fragments into a single string. */
+	composeStatus(separator?: string): string;
+	/** Subscribe to status changes. Returns an unsubscribe function. */
+	subscribe(listener: Listener): () => void;
 }
 
-/** Compose the current set of fragments into a single string. */
-export function composeStatus(separator = " · "): string {
-	return Array.from(fragments.values()).filter(Boolean).join(separator);
-}
+/** A status line of its own, for one conversation. */
+export function createStatus(): Status {
+	const fragments = new Map<string, string>();
+	const listeners = new Set<Listener>();
 
-/** Subscribe to status changes. Returns an unsubscribe function. */
-export function subscribe(listener: Listener): () => void {
-	listeners.add(listener);
-	listener(composeStatus());
-	return () => {
-		listeners.delete(listener);
+	const composeStatus = (separator = " · "): string =>
+		Array.from(fragments.values()).filter(Boolean).join(separator);
+
+	return {
+		setFragment(namespace, text) {
+			if (text === "") {
+				fragments.delete(namespace);
+			} else {
+				fragments.set(namespace, text);
+			}
+			const composed = composeStatus();
+			for (const l of listeners) l(composed);
+		},
+		composeStatus,
+		subscribe(listener) {
+			listeners.add(listener);
+			listener(composeStatus());
+			return () => {
+				listeners.delete(listener);
+			};
+		},
 	};
-}
-
-function notify(): void {
-	const composed = composeStatus();
-	for (const l of listeners) l(composed);
 }
