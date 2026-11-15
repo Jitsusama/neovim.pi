@@ -32,7 +32,8 @@
   "pi": {
     "extensions": [
       "./extensions/neovim-pi"
-    ]
+    ],
+    "sessionStateKeyed": true
   },
   "dependencies": {
     "neovim": "^5.4.0"

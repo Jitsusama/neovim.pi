@@ -1,13 +1,10 @@
 import { EventEmitter } from "node:events";
 import type { NeovimClient } from "neovim";
-import { afterEach, describe, expect, it } from "vitest";
-import {
-	addMethod,
-	addNotificationHandler,
-	registerHandlers,
-	removeMethod,
-	removeNotificationHandler,
-} from "../../extensions/neovim-pi/src/registry.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createRegistry, type Registry } from "../../extensions/neovim-pi/src/registry.js";
+
+/** The registry under test, a fresh one for each test. */
+let registry: Registry;
 
 /**
  * The npm `neovim` client surfaces incoming requests as a
@@ -16,7 +13,7 @@ import {
  * that captures what the dispatcher sends so we can assert
  * the exact arg order.
  */
-function fakeClient(): {
+function fakeClient(into: Registry = registry): {
 	client: NeovimClient;
 	requests: { method: string; args: unknown[]; resp: CapturedResp }[];
 	emit: (method: string, args: unknown[]) => Promise<CapturedResp>;
@@ -26,7 +23,7 @@ function fakeClient(): {
 	const requests: { method: string; args: unknown[]; resp: CapturedResp }[] = [];
 
 	const client = emitter as unknown as NeovimClient;
-	registerHandlers(client);
+	into.registerHandlers(client);
 
 	async function emit(method: string, args: unknown[]): Promise<CapturedResp> {
 		const resp = new CapturedResp();
@@ -59,23 +56,28 @@ class CapturedResp {
 }
 
 describe("registerHandlers", () => {
-	afterEach(() => {
-		// The dispatcher seeds method handlers in a module-scope map.
-		// Reset between tests so suites don't leak state.
-		removeMethod("custom.echo");
-		removeMethod("custom.boom");
-		removeMethod("buffer.uri.resolve");
-		removeNotificationHandler("cursor.update");
+	beforeEach(() => {
+		registry = createRegistry();
 	});
 
 	it("routes a pi.dispatch notification to a registered notification handler", () => {
 		const received: unknown[][] = [];
-		addNotificationHandler("cursor.update", (args) => {
+		registry.addNotificationHandler("cursor.update", (args) => {
 			received.push(args);
 		});
 		const { emitNotification } = fakeClient();
 		emitNotification("pi.dispatch", ["cursor.update", { line: 5, col: 2 }]);
 		expect(received).toEqual([[{ line: 5, col: 2 }]]);
+	});
+
+	it("hands a notification handler the client the notification came on", () => {
+		const from: NeovimClient[] = [];
+		registry.addNotificationHandler("cursor.update", (_args, sender) => {
+			from.push(sender);
+		});
+		const { client, emitNotification } = fakeClient();
+		emitNotification("pi.dispatch", ["cursor.update", {}]);
+		expect(from).toEqual([client]);
 	});
 
 	it("ignores a notification whose dispatched name has no handler", () => {
@@ -96,7 +98,7 @@ describe("registerHandlers", () => {
 		// client. Re-seeding the built-in default must not clobber a
 		// scheme handler an extension already claimed via addMethod.
 		fakeClient();
-		addMethod("buffer.uri.resolve", () => ({ lines: ["owned by extension"] }));
+		registry.addMethod("buffer.uri.resolve", () => ({ lines: ["owned by extension"] }));
 		const { emit } = fakeClient();
 		const resp = await emit("pi.dispatch", ["buffer.uri.resolve", "pi://pr/x"]);
 		expect(resp.isError).toBeFalsy();
@@ -119,7 +121,7 @@ describe("registerHandlers", () => {
 
 	it("dispatches to registered handlers and returns success", async () => {
 		const { emit } = fakeClient();
-		addMethod("custom.echo", (args) => ({ got: args }));
+		registry.addMethod("custom.echo", (args) => ({ got: args }));
 		const resp = await emit("pi.dispatch", ["custom.echo", 1, 2, 3]);
 		expect(resp.isError).toBeFalsy();
 		expect(resp.value).toEqual({ got: [1, 2, 3] });
@@ -127,7 +129,7 @@ describe("registerHandlers", () => {
 
 	it("converts thrown handler errors into error responses", async () => {
 		const { emit } = fakeClient();
-		addMethod("custom.boom", () => {
+		registry.addMethod("custom.boom", () => {
 			throw new Error("kaboom");
 		});
 		const resp = await emit("pi.dispatch", ["custom.boom"]);
@@ -143,9 +145,44 @@ describe("registerHandlers", () => {
 		// shape. Round-trip a value through and assert structural equality.
 		const { emit } = fakeClient();
 		const payload = { lines: ["line one", "line two"], filetype: "markdown" };
-		addMethod("custom.echo", () => payload);
+		registry.addMethod("custom.echo", () => payload);
 		const resp = await emit("pi.dispatch", ["custom.echo"]);
 		expect(resp.isError).toBeFalsy();
 		expect(resp.value).toEqual(payload);
+	});
+});
+
+describe("two conversations' registries", () => {
+	it("answer only their own methods, so one conversation's handler never reaches another's nvim", async () => {
+		const mine = createRegistry();
+		const theirs = createRegistry();
+		mine.addMethod("custom.echo", () => "mine");
+
+		const [own, other] = await Promise.all([
+			fakeClient(mine).emit("pi.dispatch", ["custom.echo"]),
+			fakeClient(theirs).emit("pi.dispatch", ["custom.echo"]),
+		]);
+
+		expect({
+			own: [own.value, own.isError],
+			other: [other.value, other.isError],
+		}).toEqual({
+			own: ["mine", undefined],
+			other: ["unknown pi method: custom.echo", true],
+		});
+	});
+
+	it("keep their own scheme handler, and a later registry still gets the default", async () => {
+		const claimed = createRegistry();
+		const fresh = createRegistry();
+		claimed.addMethod("buffer.uri.resolve", () => ({ lines: ["owned"] }));
+
+		const [owned, defaulted] = await Promise.all([
+			fakeClient(claimed).emit("pi.dispatch", ["buffer.uri.resolve", "pi://x/y"]),
+			fakeClient(fresh).emit("pi.dispatch", ["buffer.uri.resolve", "pi://x/y"]),
+		]);
+
+		expect((owned.value as { lines: string[] }).lines).toEqual(["owned"]);
+		expect((defaulted.value as { lines: string[] }).lines[0]).toMatch(/no scheme handler/);
 	});
 });

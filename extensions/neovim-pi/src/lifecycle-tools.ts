@@ -14,13 +14,13 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { attachToSocket, detachFromNeovim, getClient, getPairedSocket } from "./attach.ts";
+import type { Connection } from "./attach.ts";
 import { listSocketCandidates, socketExists } from "./discovery.ts";
 import { forgetPairing, rememberPairing } from "./state.ts";
 import { renderStatus } from "./status-line.ts";
 
-/** Register all pairing-lifecycle tools. */
-export function registerLifecycleTools(pi: ExtensionAPI): void {
+/** Register all pairing-lifecycle tools, acting on this conversation's `connection`. */
+export function registerLifecycleTools(pi: ExtensionAPI, connection: Connection): void {
 	pi.registerTool({
 		name: "nvim_list_candidates",
 		label: "List nvim candidates",
@@ -58,7 +58,7 @@ export function registerLifecycleTools(pi: ExtensionAPI): void {
 		}),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			const chosen = await chooseSocket(ctx, params.socket);
-			const client = await attachToSocket(chosen);
+			const client = await connection.attachToSocket(chosen);
 			rememberPairing(pi, chosen);
 			renderStatus(ctx, true);
 
@@ -76,8 +76,8 @@ export function registerLifecycleTools(pi: ExtensionAPI): void {
 		description: "Release the current nvim pairing. Idempotent.",
 		parameters: Type.Object({}),
 		async execute(_id, _params, _signal, _onUpdate, ctx) {
-			const wasPaired = getPairedSocket();
-			await detachFromNeovim();
+			const wasPaired = connection.getPairedSocket();
+			await connection.detachFromNeovim();
 			forgetPairing(pi);
 			renderStatus(ctx, false);
 			return {
@@ -98,8 +98,8 @@ export function registerLifecycleTools(pi: ExtensionAPI): void {
 		description: "Report whether pi is paired with an nvim instance and which socket.",
 		parameters: Type.Object({}),
 		async execute(_id, _params, _signal, _onUpdate, _ctx) {
-			const client = getClient();
-			const socket = getPairedSocket();
+			const client = connection.getClient();
+			const socket = connection.getPairedSocket();
 			if (!client || !socket) {
 				return {
 					content: [{ type: "text", text: "not paired" }],

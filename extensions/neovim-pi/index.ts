@@ -18,22 +18,33 @@
  *
  * Registration is the only thing this file does. Every
  * substantive concern lives in `src/`.
+ *
+ * Each conversation gets its own registry and connection
+ * here, in the factory, which runs once per conversation
+ * even when a host shares this package's modules among
+ * them (`pi.sessionStateKeyed`): one conversation's
+ * pairing and handlers are never another's.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { attachToSocket, detachFromNeovim, getClient } from "./src/attach.ts";
+import { createConnection } from "./src/attach.ts";
 import { installCursorStream } from "./src/cursor.ts";
 import { socketExists } from "./src/discovery.ts";
 import { registerEditorTools } from "./src/editor-tools.ts";
 import { registerEventBridge } from "./src/event-bridge.ts";
 import { registerLifecycleTools } from "./src/lifecycle-tools.ts";
 import { registerLspBackend } from "./src/lsp-backend.ts";
+import { createRegistry } from "./src/registry.ts";
 import { forgetPairing, lastPairing } from "./src/state.ts";
 import { clearStatus, renderStatus } from "./src/status-line.ts";
 import { pairedToolSurface } from "./src/tool-surface.ts";
 import { registerNvimTools } from "./src/tools.ts";
 
 export default async function (pi: ExtensionAPI) {
+	const registry = createRegistry();
+	const connection = createConnection(registry);
+	const getClient = () => connection.getClient();
+
 	// -- Cross-extension registration bridge --
 	//
 	// Subscribe to `neovim-pi:register-handler` and
@@ -43,15 +54,15 @@ export default async function (pi: ExtensionAPI) {
 	// loads packages with isolated module roots). Emits
 	// `neovim-pi:ready` once subscribed so emitters that
 	// loaded earlier can retry their registration.
-	registerEventBridge(pi.events);
+	registerEventBridge(pi.events, registry);
 
 	// -- Human-cursor push stream receiver --
 	//
 	// Register the `cursor.moved` notification handler once, at
-	// activation. The handler map is process-scoped and survives
-	// reattach, so a single install backs every pairing; nvim is
+	// activation. This conversation's registry survives reattach,
+	// so a single install backs every pairing it makes; nvim is
 	// told to start emitting in `attachToSocket`.
-	installCursorStream();
+	installCursorStream(registry);
 
 	// -- Tool surface: editor tools only while paired --
 	//
@@ -98,7 +109,7 @@ export default async function (pi: ExtensionAPI) {
 		}
 
 		try {
-			await attachToSocket(socket);
+			await connection.attachToSocket(socket);
 			renderStatus(ctx, true);
 		} catch {
 			forgetPairing(pi);
@@ -108,21 +119,21 @@ export default async function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
-		await detachFromNeovim();
+		await connection.detachFromNeovim();
 		clearStatus(ctx);
 	});
 
 	// -- Tools the agent calls to drive pairing --
 
-	registerLifecycleTools(pi);
+	registerLifecycleTools(pi, connection);
 
 	// -- Tools the agent calls to drive an attached nvim --
 
-	registerNvimTools(pi, () => getClient());
+	registerNvimTools(pi, getClient);
 
 	// -- Editor-control tools: edit, view and persist real files --
 
-	registerEditorTools(pi, () => getClient());
+	registerEditorTools(pi, getClient);
 
 	// -- LSP backend: forward the harness's `lsp` tool to nvim --
 	//
@@ -131,5 +142,5 @@ export default async function (pi: ExtensionAPI) {
 	// with an nvim that advertises `nvim.lsp.query`, so the `lsp`
 	// tool routes to the editor's own servers when present and
 	// falls back to the harness's standalone servers otherwise.
-	registerLspBackend(pi, () => getClient());
+	registerLspBackend(pi, getClient);
 }

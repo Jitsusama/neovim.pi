@@ -1,5 +1,4 @@
 import { EventEmitter } from "node:events";
-import type { NeovimClient } from "neovim";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -43,81 +42,113 @@ vi.mock("../../extensions/neovim-pi/src/handshake.js", () => ({
 	performHandshake: vi.fn(async () => ({ version: "0.1.0", capabilities: [] })),
 }));
 
-vi.mock("../../extensions/neovim-pi/src/registry.js", () => ({
-	registerHandlers: vi.fn(),
-}));
-
-import {
-	attachToSocket,
-	detachFromNeovim,
-	getClient,
-	getPairedSocket,
-} from "../../extensions/neovim-pi/src/attach.js";
+import { type Connection, createConnection } from "../../extensions/neovim-pi/src/attach.js";
+import { createRegistry } from "../../extensions/neovim-pi/src/registry.js";
 
 describe("attach lifecycle", () => {
+	let connection: Connection;
+
 	beforeEach(() => {
 		fakeClients.length = 0;
 		fakeLinks.length = 0;
+		connection = createConnection(createRegistry());
 	});
 
 	afterEach(async () => {
-		await detachFromNeovim();
+		await connection.detachFromNeovim();
 	});
 
 	it("starts unattached", () => {
-		expect(getClient()).toBeNull();
-		expect(getPairedSocket()).toBeNull();
+		expect(connection.getClient()).toBeNull();
+		expect(connection.getPairedSocket()).toBeNull();
 	});
 
 	it("attaches to a socket and reports the pairing", async () => {
-		await attachToSocket("/tmp/test.sock");
-		expect(getClient()).not.toBeNull();
-		expect(getPairedSocket()).toBe("/tmp/test.sock");
+		await connection.attachToSocket("/tmp/test.sock");
+		expect(connection.getClient()).not.toBeNull();
+		expect(connection.getPairedSocket()).toBe("/tmp/test.sock");
 	});
 
 	it("is idempotent when called twice with the same socket", async () => {
-		const first = await attachToSocket("/tmp/test.sock");
-		const second = await attachToSocket("/tmp/test.sock");
+		const first = await connection.attachToSocket("/tmp/test.sock");
+		const second = await connection.attachToSocket("/tmp/test.sock");
 		expect(first).toBe(second);
 		// Only one underlying client should have been created.
 		expect(fakeClients).toHaveLength(1);
 	});
 
 	it("refuses to switch sockets without an explicit detach", async () => {
-		await attachToSocket("/tmp/a.sock");
-		await expect(attachToSocket("/tmp/b.sock")).rejects.toThrow(/detach first/i);
+		await connection.attachToSocket("/tmp/a.sock");
+		await expect(connection.attachToSocket("/tmp/b.sock")).rejects.toThrow(/detach first/i);
 	});
 
 	it("clears the pairing when detached", async () => {
-		await attachToSocket("/tmp/test.sock");
-		await detachFromNeovim();
-		expect(getClient()).toBeNull();
-		expect(getPairedSocket()).toBeNull();
+		await connection.attachToSocket("/tmp/test.sock");
+		await connection.detachFromNeovim();
+		expect(connection.getClient()).toBeNull();
+		expect(connection.getPairedSocket()).toBeNull();
 	});
 
 	it("closes its socket on detach (so nvim doesn't exit)", async () => {
-		await attachToSocket("/tmp/test.sock");
-		await detachFromNeovim();
+		await connection.attachToSocket("/tmp/test.sock");
+		await connection.detachFromNeovim();
 		expect(fakeLinks[0]?.close).toHaveBeenCalled();
 	});
 
 	it("detach is safe to call when unpaired", async () => {
-		await expect(detachFromNeovim()).resolves.toBeUndefined();
-		expect(getClient()).toBeNull();
+		await expect(connection.detachFromNeovim()).resolves.toBeUndefined();
+		expect(connection.getClient()).toBeNull();
 	});
 
 	it("clears the pairing when the peer disconnects unexpectedly", async () => {
-		await attachToSocket("/tmp/test.sock");
+		await connection.attachToSocket("/tmp/test.sock");
 		const client = fakeClients[0];
 		client?.emit("disconnect");
-		expect(getClient()).toBeNull();
-		expect(getPairedSocket()).toBeNull();
+		expect(connection.getClient()).toBeNull();
+		expect(connection.getPairedSocket()).toBeNull();
 	});
 
 	it("allows re-attaching to a new socket after detach", async () => {
-		await attachToSocket("/tmp/first.sock");
-		await detachFromNeovim();
-		await attachToSocket("/tmp/second.sock");
-		expect(getPairedSocket()).toBe("/tmp/second.sock");
+		await connection.attachToSocket("/tmp/first.sock");
+		await connection.detachFromNeovim();
+		await connection.attachToSocket("/tmp/second.sock");
+		expect(connection.getPairedSocket()).toBe("/tmp/second.sock");
+	});
+});
+
+describe("two conversations' connections", () => {
+	beforeEach(() => {
+		fakeClients.length = 0;
+		fakeLinks.length = 0;
+	});
+
+	it("keep their own pairings, so one pairing leaves the other unpaired", async () => {
+		const first = createConnection(createRegistry());
+		const second = createConnection(createRegistry());
+
+		await first.attachToSocket("/tmp/first.sock");
+
+		expect({
+			first: first.getPairedSocket(),
+			second: second.getPairedSocket(),
+			secondClient: second.getClient(),
+		}).toEqual({ first: "/tmp/first.sock", second: null, secondClient: null });
+		await first.detachFromNeovim();
+	});
+
+	it("pair with different nvims at once, and a detach releases only its own", async () => {
+		const first = createConnection(createRegistry());
+		const second = createConnection(createRegistry());
+
+		await first.attachToSocket("/tmp/first.sock");
+		await second.attachToSocket("/tmp/second.sock");
+		await first.detachFromNeovim();
+
+		expect({
+			first: first.getPairedSocket(),
+			second: second.getPairedSocket(),
+			closed: fakeLinks.map((link) => link.close.mock.calls.length),
+		}).toEqual({ first: null, second: "/tmp/second.sock", closed: [1, 0] });
+		await second.detachFromNeovim();
 	});
 });

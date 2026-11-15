@@ -31,21 +31,20 @@ vi.mock("../../extensions/neovim-pi/src/handshake.js", () => ({
 	performHandshake: vi.fn(async () => ({ version: "0.1.0", capabilities: [] })),
 }));
 
-vi.mock("../../extensions/neovim-pi/src/registry.js", () => ({
-	registerHandlers: vi.fn(),
-}));
-
-import { attachToSocket, detachFromNeovim } from "../../extensions/neovim-pi/src/attach.js";
+import { createConnection } from "../../extensions/neovim-pi/src/attach.js";
+import { createRegistry } from "../../extensions/neovim-pi/src/registry.js";
 
 describe("the neovim client", () => {
+	const connection = createConnection(createRegistry());
+
 	afterEach(async () => {
-		await detachFromNeovim();
+		await connection.detachFromNeovim();
 	});
 
 	it("is loaded at the first pairing, not when the extension loads", async () => {
 		expect(loaded.times).toBe(0);
 
-		await attachToSocket("/tmp/test.sock");
+		await connection.attachToSocket("/tmp/test.sock");
 
 		expect(loaded.times).toBe(1);
 	});

@@ -142,13 +142,15 @@ wired. The convention for callers is:
    you did.
 
 Malformed payloads are dropped silently. Last
-registration wins, mirroring `addMethod`'s semantics.
-Removal is symmetric.
+registration wins. Removal is symmetric.
 
-This bridge is the only sanctioned way for a separate
-pi package to extend the registry. Bundled extensions
-inside the neovim-pi package itself may call `addMethod`
-directly from `lib/index.ts`.
+This bridge is the only sanctioned way to extend the
+registry, for bundled extensions as much as for separate
+pi packages. Each conversation has its own registry and
+its own `pi.events` bus, so a handler reaches the
+conversation whose bus it was emitted on, and a host
+running many conversations keeps each one's handlers
+apart.
 
 ## Buffer lifecycle
 

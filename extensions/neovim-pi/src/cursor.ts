@@ -7,9 +7,15 @@
  * receiving end: it caches the latest snapshot so pi can
  * answer "where is the human, and were they just typing?"
  * without a round trip. The turn-taking rule reads it.
+ *
+ * Each snapshot is kept against the client it came in on,
+ * so it belongs to that pairing alone: a host runs many
+ * conversations in one process, each paired with its own
+ * nvim, and one's human must never read as another's.
  */
 
-import { addNotificationHandler } from "./registry.ts";
+import type { NeovimClient } from "neovim";
+import type { Registry } from "./registry.ts";
 
 export interface CursorSnapshot {
 	win: number;
@@ -25,16 +31,17 @@ export interface CursorSnapshot {
 
 export type CursorPayload = Omit<CursorSnapshot, "receivedAt">;
 
-let cached: CursorSnapshot | null = null;
+/** Each pairing's latest snapshot, gone with its client. */
+const cursors = new WeakMap<NeovimClient, CursorSnapshot>();
 
-/** Store the latest pushed cursor snapshot, stamped now. */
-export function recordCursor(payload: CursorPayload): void {
-	cached = { ...payload, receivedAt: Date.now() };
+/** Store the latest snapshot a client pushed, stamped now. */
+export function recordCursor(client: NeovimClient, payload: CursorPayload): void {
+	cursors.set(client, { ...payload, receivedAt: Date.now() });
 }
 
-/** Return the most recent cursor snapshot, or null. */
-export function lastCursor(): CursorSnapshot | null {
-	return cached;
+/** Return the most recent snapshot a client pushed, or null. */
+export function lastCursor(client: NeovimClient): CursorSnapshot | null {
+	return cursors.get(client) ?? null;
 }
 
 export interface TurnState {
@@ -61,7 +68,8 @@ export interface TurnState {
  * pi's own (`receivedAt` was stamped on receipt), so `now`
  * and the stamp share a frame.
  */
-export function turnState(withinMs = 1500, now = Date.now()): TurnState {
+export function turnState(client: NeovimClient, withinMs = 1500, now = Date.now()): TurnState {
+	const cached = cursors.get(client);
 	if (!cached) {
 		return { humanActive: false, typing: false, mode: null, msSinceMove: null, bufnr: null };
 	}
@@ -76,9 +84,9 @@ export function turnState(withinMs = 1500, now = Date.now()): TurnState {
 	};
 }
 
-/** Drop the cached cursor (on detach, or between sessions). */
-export function clearCursor(): void {
-	cached = null;
+/** Drop a pairing's cached cursor (on detach). */
+export function clearCursor(client: NeovimClient): void {
+	cursors.delete(client);
 }
 
 /**
@@ -86,9 +94,9 @@ export function clearCursor(): void {
  * lua side pushes one positional argument: the snapshot
  * table, which the dispatcher hands us as `args[0]`.
  */
-export function installCursorStream(): void {
-	addNotificationHandler("cursor.moved", (args) => {
+export function installCursorStream(registry: Registry): void {
+	registry.addNotificationHandler("cursor.moved", (args, client) => {
 		const payload = args[0] as CursorPayload | undefined;
-		if (payload) recordCursor(payload);
+		if (payload) recordCursor(client, payload);
 	});
 }

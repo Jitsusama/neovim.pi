@@ -63,11 +63,16 @@ export interface PeerInfo {
 	capabilities: string[];
 }
 
-let peer: PeerInfo | null = null;
+/**
+ * Each pairing's handshake, kept against its client: a host runs many
+ * conversations in one process, each paired with its own nvim, whose
+ * capabilities are its own.
+ */
+const peers = new WeakMap<NeovimClient, PeerInfo>();
 
-/** Returns the peer's last-seen handshake info. */
-export function getPeerInfo(): PeerInfo | null {
-	return peer;
+/** Returns what a client's nvim said at its handshake, or null. */
+export function getPeerInfo(client: NeovimClient): PeerInfo | null {
+	return peers.get(client) ?? null;
 }
 
 /**
@@ -90,11 +95,11 @@ export async function performHandshake(client: NeovimClient): Promise<PeerInfo> 
 		throw new Error("nvim handshake returned no version");
 	}
 
-	peer = response;
+	peers.set(client, response);
 	return response;
 }
 
-/** Returns true when the peer advertised a capability. */
-export function peerHas(capability: string): boolean {
-	return peer?.capabilities.includes(capability) ?? false;
+/** Returns true when a client's nvim advertised a capability. */
+export function peerHas(client: NeovimClient, capability: string): boolean {
+	return peers.get(client)?.capabilities.includes(capability) ?? false;
 }

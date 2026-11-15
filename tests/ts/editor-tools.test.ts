@@ -29,24 +29,22 @@ function setup(getClient: () => NeovimClient | null): Map<string, CapturedTool> 
 const noopCtx = {} as ExtensionContext;
 const noopSignal = new AbortController().signal;
 
-//// Seed the module-level peer with a capability list, so
-//// requireCapability passes (or, with an empty list, degrades).
-async function seedPeer(capabilities: string[]): Promise<void> {
+//// A paired client that advertised `capabilities` in its
+//// handshake, so requireCapability passes (or, with an empty
+//// list, degrades), and whose every nvim_exec_lua after it
+//// returns one canned payload: the lua result the tool renders.
+async function pairedClient(capabilities: string[], result: unknown): Promise<NeovimClient> {
+	let shaken = false;
 	const client = {
 		request: async (method: string) => {
 			if (method === "nvim_get_api_info") return [1, {}];
+			if (shaken) return result;
+			shaken = true;
 			return { version: "0.1.0", capabilities };
 		},
 	} as unknown as NeovimClient;
 	await performHandshake(client);
-}
-
-//// A client whose every nvim_exec_lua returns one canned
-//// payload — the lua result the tool then renders.
-function cannedClient(result: unknown): NeovimClient {
-	return {
-		request: async () => result,
-	} as unknown as NeovimClient;
+	return client;
 }
 
 async function runTool(
@@ -86,25 +84,40 @@ describe("editor-control tools", () => {
 	});
 
 	it("degrades with an update-the-plugin error when the peer lacks the capability", async () => {
-		await seedPeer([]); // paired, but advertises nothing
-		const tools = setup(() => cannedClient(null));
+		const client = await pairedClient([], null); // paired, but advertises nothing
+		const tools = setup(() => client);
 		await expect(
 			runTool(tools.get("nvim_text"), { action: "set_range", bufnr: 1, text: "x" }),
 		).rejects.toThrow(/does not support nvim\.text\.setRange.*update the neovim-pi plugin/i);
 	});
 
 	it("renders a changedtick conflict as a re-read instruction", async () => {
-		await seedPeer(["nvim.text.setRange"]);
-		const tools = setup(() => cannedClient({ ok: false, conflict: true, changedtick: 42 }));
+		const client = await pairedClient(["nvim.text.setRange"], {
+			ok: false,
+			conflict: true,
+			changedtick: 42,
+		});
+		const tools = setup(() => client);
 		const text = await runTool(tools.get("nvim_text"), { action: "set_range", bufnr: 1, text: "x" });
 		expect(text).toContain("changedtick 42");
 		expect(text).toMatch(/re-read and retry/);
 	});
 
 	it("renders a modified-buffer delete refusal with the force hint", async () => {
-		await seedPeer(["nvim.buffer.delete"]);
-		const tools = setup(() => cannedClient({ ok: false, modified: true }));
+		const client = await pairedClient(["nvim.buffer.delete"], { ok: false, modified: true });
+		const tools = setup(() => client);
 		const text = await runTool(tools.get("nvim_buffer"), { action: "delete", bufnr: 7 });
 		expect(text).toBe("refused: buffer 7 has unsaved changes; pass force to discard them");
+	});
+
+	it("gates on what this pairing's nvim advertised, not another pairing's", async () => {
+		// Another conversation in the same host pairs with a newer
+		// plugin after this one did; this pairing stays as it was.
+		const own = await pairedClient([], null);
+		await pairedClient(["nvim.text.setRange"], null);
+		const tools = setup(() => own);
+		await expect(
+			runTool(tools.get("nvim_text"), { action: "set_range", bufnr: 1, text: "x" }),
+		).rejects.toThrow(/does not support nvim\.text\.setRange/i);
 	});
 });

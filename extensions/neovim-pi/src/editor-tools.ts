@@ -72,7 +72,7 @@ function registerFileTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 		}),
 		async execute(_id, params, _signal, _onUpdate, _ctx) {
 			const client = requireClient(getClient);
-			requireCapability("nvim.file.open");
+			requireCapability(client, "nvim.file.open");
 			const opts: Record<string, unknown> = { mode: params.mode ?? "current" };
 			if (params.line !== undefined) {
 				opts.line = params.line;
@@ -138,7 +138,7 @@ function registerTextTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			const range = [params.startLine, params.startCol, params.endLine, params.endCol];
 
 			if (params.action === "get_range") {
-				requireCapability("nvim.text.getRange");
+				requireCapability(client, "nvim.text.getRange");
 				const result = await execLua<GetRangeResult>(client, "text", "get_range", [
 					params.bufnr,
 					...range,
@@ -146,7 +146,7 @@ function registerTextTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 				return { content: [{ type: "text", text: result.text }], details: result };
 			}
 
-			requireCapability("nvim.text.setRange");
+			requireCapability(client, "nvim.text.setRange");
 			if (params.text === undefined) {
 				throw new Error("set_range requires `text`");
 			}
@@ -256,7 +256,7 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			const client = requireClient(getClient);
 
 			if (params.action === "list") {
-				requireCapability("nvim.buffer.list");
+				requireCapability(client, "nvim.buffer.list");
 				const list = await execLua<BufferEntry[]>(client, "buffers", "list", []);
 				const ownedCount = list.filter((b) => b.owned).length;
 				return {
@@ -270,7 +270,7 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			}
 
 			if (params.action === "info") {
-				requireCapability("nvim.buffer.info");
+				requireCapability(client, "nvim.buffer.info");
 				const result = await execLua<InfoResult>(client, "buffers", "info", [params.bufnr]);
 				if (!result.ok) {
 					return {
@@ -295,7 +295,7 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			}
 
 			if (params.action === "save") {
-				requireCapability("nvim.file.save");
+				requireCapability(client, "nvim.file.save");
 				const result = await execLua<SaveResult>(client, "file", "save", [params.bufnr]);
 				if (!result.ok) {
 					return {
@@ -315,7 +315,7 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			}
 
 			if (params.action === "switch") {
-				requireCapability("nvim.buffer.switch");
+				requireCapability(client, "nvim.buffer.switch");
 				const result = await execLua<SwitchResult>(client, "buffers", "switch", [params.bufnr]);
 				if (!result.ok) {
 					return {
@@ -332,7 +332,7 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			}
 
 			if (params.action === "reload") {
-				requireCapability("nvim.file.reload");
+				requireCapability(client, "nvim.file.reload");
 				const reloadArgs: unknown[] = [params.bufnr];
 				if (params.force !== undefined) {
 					reloadArgs.push(params.force);
@@ -355,7 +355,7 @@ function registerBufferTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 				};
 			}
 
-			requireCapability("nvim.buffer.delete");
+			requireCapability(client, "nvim.buffer.delete");
 			const deleteArgs: unknown[] = [params.bufnr];
 			if (params.force !== undefined) {
 				deleteArgs.push(params.force);
@@ -423,7 +423,7 @@ function registerWindowTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			const client = requireClient(getClient);
 
 			if (params.action === "layout") {
-				requireCapability("nvim.window.layout");
+				requireCapability(client, "nvim.window.layout");
 				const layout = await execLua<Layout>(client, "window", "layout", []);
 				const winCount = layout.tabs.reduce((n, t) => n + t.windows.length, 0);
 				return {
@@ -442,7 +442,7 @@ function registerWindowTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			}
 
 			if (params.action === "focus") {
-				requireCapability("nvim.window.focus");
+				requireCapability(client, "nvim.window.focus");
 				const result = await execLua<FocusResult>(client, "window", "focus", [params.win]);
 				if (!result.ok) {
 					return {
@@ -456,7 +456,7 @@ function registerWindowTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 				};
 			}
 
-			requireCapability("nvim.window.close");
+			requireCapability(client, "nvim.window.close");
 			const result = await execLua<CloseResult>(client, "window", "close", [params.win]);
 			if (!result.ok) {
 				return {
@@ -527,10 +527,9 @@ function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			if (params.action === "turn") {
 				// Read-only inference over pi's own cursor cache; no
 				// nvim round trip and no capability gate, since nothing
-				// is asked of the peer. void the unused client so the
-				// pairing check above still runs for every action.
-				void client;
-				const state = turnState();
+				// is asked of the peer. The snapshot is the one this
+				// pairing's client last sent.
+				const state = turnState(client);
 				const verdict = state.typing
 					? "the human is typing — defer edits to a buffer you share with them"
 					: state.humanActive
@@ -546,7 +545,7 @@ function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			}
 
 			if (params.action === "get") {
-				requireCapability("nvim.cursor.get");
+				requireCapability(client, "nvim.cursor.get");
 				const info = await execLua<CursorInfo>(client, "cursor", "get", [params.win ?? 0]);
 				return {
 					content: [
@@ -560,7 +559,7 @@ function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			}
 
 			if (params.action === "get_selection") {
-				requireCapability("nvim.cursor.selection.get");
+				requireCapability(client, "nvim.cursor.selection.get");
 				const sel = await execLua<Selection>(client, "cursor", "get_selection", [params.win ?? 0]);
 				if (sel.empty) {
 					return { content: [{ type: "text", text: "no visual selection" }], details: sel };
@@ -585,7 +584,7 @@ function registerCursorTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			if (params.line === undefined) {
 				throw new Error("set requires `line`");
 			}
-			requireCapability("nvim.cursor.set");
+			requireCapability(client, "nvim.cursor.set");
 			const col = params.col ?? 0;
 			await execLua(client, "cursor", "set", [params.win, params.line, col]);
 			return {
@@ -640,7 +639,7 @@ function registerDiffTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			const client = requireClient(getClient);
 
 			if (params.action === "files") {
-				requireCapability("nvim.diff.files");
+				requireCapability(client, "nvim.diff.files");
 				if (params.left === undefined || params.right === undefined) {
 					throw new Error("files requires `left` and `right` paths");
 				}
@@ -660,7 +659,7 @@ function registerDiffTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 			}
 
 			if (params.action === "pending") {
-				requireCapability("nvim.diff.pending");
+				requireCapability(client, "nvim.diff.pending");
 				if (params.bufnr === undefined) {
 					throw new Error("pending requires `bufnr`");
 				}
@@ -682,7 +681,7 @@ function registerDiffTool(pi: ExtensionAPI, getClient: ClientResolver): void {
 				};
 			}
 
-			requireCapability("nvim.diff.off");
+			requireCapability(client, "nvim.diff.off");
 			if (params.win === undefined) {
 				throw new Error("off requires `win`");
 			}
@@ -711,8 +710,8 @@ function requireClient(get: ClientResolver): NeovimClient {
 }
 
 /** Refuse a verb the paired plugin is too old to support. */
-function requireCapability(capability: string): void {
-	if (!peerHas(capability)) {
+function requireCapability(client: NeovimClient, capability: string): void {
+	if (!peerHas(client, capability)) {
 		throw new Error(
 			`the paired nvim does not support ${capability}; update the neovim-pi plugin to use this tool.`,
 		);

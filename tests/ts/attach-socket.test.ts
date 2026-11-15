@@ -6,11 +6,11 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	ATTACH_TIMEOUT_MS,
-	attachToSocket,
-	detachFromNeovim,
-	getClient,
+	type Connection,
+	createConnection,
 } from "../../extensions/neovim-pi/src/attach.js";
 import { getPeerInfo } from "../../extensions/neovim-pi/src/handshake.js";
+import { createRegistry } from "../../extensions/neovim-pi/src/registry.js";
 
 /**
  * Pairing against sockets that are really there, with the real
@@ -28,6 +28,7 @@ const REPO = resolve(__dirname, "..", "..");
 const HAVE_NVIM = spawnSync("nvim", ["--version"]).status === 0;
 
 let dir: string;
+let connection: Connection;
 let servers: Server[];
 let problems: unknown[];
 
@@ -40,12 +41,13 @@ beforeEach(() => {
 	dir = mkdtempSync(join(tmpdir(), "nvp-"));
 	servers = [];
 	problems = [];
+	connection = createConnection(createRegistry());
 	process.on("unhandledRejection", collect);
 	process.on("uncaughtException", collect);
 });
 
 afterEach(async () => {
-	await detachFromNeovim();
+	await connection.detachFromNeovim();
 	for (const server of servers) server.close();
 	process.off("unhandledRejection", collect);
 	process.off("uncaughtException", collect);
@@ -104,35 +106,35 @@ const reported = (): Promise<void> => new Promise((done) => setTimeout(done, 300
 
 describe("pairing with a socket nvim is not answering on", () => {
 	it("fails the attach, and leaves nothing unhandled, when nobody is listening", async () => {
-		const outcome = await settle(attachToSocket(await staleSocket()));
+		const outcome = await settle(connection.attachToSocket(await staleSocket()));
 		await reported();
 
 		expect(problems).toEqual([]);
 		expect(outcome.error?.message).toMatch(/ECONNREFUSED/);
-		expect(getClient()).toBeNull();
+		expect(connection.getClient()).toBeNull();
 	}, 20_000);
 
 	it("gives up at its clock on a socket that accepts and never answers", async () => {
-		const outcome = await settle(attachToSocket(await listen("mute.sock", () => {})));
+		const outcome = await settle(connection.attachToSocket(await listen("mute.sock", () => {})));
 		await reported();
 
 		expect(problems).toEqual([]);
 		expect(outcome.error?.message).toMatch(/did not answer/);
 		expect(outcome.took).toBeLessThan(ATTACH_TIMEOUT_MS + MARGIN_MS);
-		expect(getClient()).toBeNull();
+		expect(connection.getClient()).toBeNull();
 	}, 20_000);
 
 	it("fails at once, not at its clock, when the peer hangs up mid-handshake", async () => {
 		const socket = await listen("hangup.sock", (peer) => {
 			peer.once("data", () => peer.destroy());
 		});
-		const outcome = await settle(attachToSocket(socket));
+		const outcome = await settle(connection.attachToSocket(socket));
 		await reported();
 
 		expect(problems).toEqual([]);
 		expect(outcome.error?.message).toMatch(/hung up/);
 		expect(outcome.took).toBeLessThan(MARGIN_MS);
-		expect(getClient()).toBeNull();
+		expect(connection.getClient()).toBeNull();
 	}, 20_000);
 });
 
@@ -155,12 +157,12 @@ describe.skipIf(!HAVE_NVIM)("pairing with a real nvim", () => {
 	it("still pairs, handshake and all", async () => {
 		const { nvim, socket } = await startNvim();
 		try {
-			await attachToSocket(socket);
+			const paired = await connection.attachToSocket(socket);
 
-			expect(getClient()).not.toBeNull();
-			expect(getPeerInfo()?.version).toBeTruthy();
+			expect(connection.getClient()).not.toBeNull();
+			expect(getPeerInfo(paired)?.version).toBeTruthy();
 		} finally {
-			await detachFromNeovim();
+			await connection.detachFromNeovim();
 			nvim.kill("SIGKILL");
 		}
 	}, 30_000);
@@ -168,13 +170,13 @@ describe.skipIf(!HAVE_NVIM)("pairing with a real nvim", () => {
 	it("lets go of an nvim that dies, and a late write to it ends nothing", async () => {
 		const { nvim, socket } = await startNvim();
 		try {
-			const paired = await attachToSocket(socket);
+			const paired = await connection.attachToSocket(socket);
 			nvim.kill("SIGKILL");
 			const deadline = Date.now() + 10_000;
-			while (getClient() && Date.now() < deadline) {
+			while (connection.getClient() && Date.now() < deadline) {
 				await new Promise((done) => setTimeout(done, 50));
 			}
-			expect(getClient()).toBeNull();
+			expect(connection.getClient()).toBeNull();
 
 			// A tool call already holding the client writes to a socket
 			// whose far end is gone.
