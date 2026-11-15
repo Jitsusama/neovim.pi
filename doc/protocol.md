@@ -152,6 +152,13 @@ conversation whose bus it was emitted on, and a host
 running many conversations keeps each one's handlers
 apart.
 
+A `register-handler` emitted on one conversation's bus
+answers only the nvim paired with that conversation.
+Earlier releases kept one registry for the whole
+process, so a handler registered anywhere answered
+every nvim; an extension that relied on that must now
+emit on each conversation's bus it wants to serve.
+
 ## Buffer lifecycle
 
 1. pi calls `nvim.buffer.open(uri, focus)`.
